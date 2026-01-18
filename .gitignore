@@ -1,0 +1,19 @@
+# Python
+backend/__pycache__/
+backend/venv/
+backend/*.pyc
+backend/brain.json
+backend/brain.pth
+backend/training_data.db
+
+# Flutter
+frontend/build/
+frontend/.dart_tool/
+frontend/.flutter-plugins-dependencies
+frontend/.pub-cache/
+frontend/.pub/
+
+# IDEs
+.idea/
+.vscode/
+*.iml
