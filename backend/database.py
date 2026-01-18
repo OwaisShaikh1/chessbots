@@ -24,6 +24,12 @@ def init_db():
         cursor.execute("ALTER TABLE training_moves ADD COLUMN opponent TEXT DEFAULT 'Self'")
     except:
         pass  # Column likely exists
+    
+    try:
+        cursor.execute("ALTER TABLE training_moves ADD COLUMN stockfish_eval INTEGER DEFAULT NULL")
+    except:
+        pass  # Column likely exists
+    
     conn.commit()
     conn.close()
 

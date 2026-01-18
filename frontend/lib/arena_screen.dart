@@ -33,7 +33,10 @@ class ArenaScreen extends StatefulWidget {
   State<ArenaScreen> createState() => _ArenaScreenState();
 }
 
-class _ArenaScreenState extends State<ArenaScreen> {
+class _ArenaScreenState extends State<ArenaScreen> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;  // Keep state alive when navigating away
+  
   ChessBoardController controller = ChessBoardController();
   
   // Settings
@@ -61,6 +64,7 @@ class _ArenaScreenState extends State<ArenaScreen> {
   int _activeSessionIndex = -1;
   bool _isViewingHistory = false;
   bool _isPaused = false;
+  bool _isTraining = false;
 
   Future<void> _togglePause() async {
     try {
@@ -79,6 +83,69 @@ class _ArenaScreenState extends State<ArenaScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Failed to toggle pause: $e"))
       );
+    }
+  }
+
+  Future<void> _learnFromHistory() async {
+    if (!mounted) return;
+    setState(() {
+      _isTraining = true;
+      _logs += "Starting training from history...\n";
+    });
+
+    final request = http.Request('POST', Uri.parse('${widget.baseUrl}/train-history-stream'));
+    request.body = jsonEncode({"batch_size": 64, "epochs": 20});
+    request.headers['Content-Type'] = 'application/json';
+
+    try {
+      final response = await request.send();
+      
+      response.stream.transform(utf8.decoder).transform(const LineSplitter()).listen(
+        (line) {
+          if (line.isEmpty) return;
+          if (!mounted) return; // Check if widget is still mounted
+          try {
+            final data = jsonDecode(line);
+            setState(() {
+              if (data['type'] == 'start') {
+                _logs += "Training on ${data['total_moves']} positions from Stockfish battles (${data['method']})\n";
+              } else if (data['type'] == 'info') {
+                _logs += "Train set: ${data['train_size']} | Validation set: ${data['val_size']}\n";
+              } else if (data['type'] == 'epoch_end') {
+                final trainLoss = (data['train_loss'] as num).toStringAsFixed(6);
+                final valLoss = (data['val_loss'] as num).toStringAsFixed(6);
+                _logs += "Epoch ${data['epoch']}/${request.body.contains('20') ? 20 : 5} - Train: $trainLoss, Val: $valLoss ${data['improvement']}\n";
+              } else if (data['type'] == 'complete') {
+                _logs += "✓ ${data['message']} (${data['duration']})\n";
+              } else if (data['type'] == 'error') {
+                _logs += "ERROR: ${data['message']}\n";
+              }
+            });
+          } catch (e) {
+            if (mounted) setState(() => _logs += "Parse error: $e\n");
+          }
+        },
+        onDone: () {
+          if (!mounted) return;
+          setState(() {
+            _isTraining = false;
+            _logs += "Training finished.\n";
+          });
+        },
+        onError: (e) {
+          if (!mounted) return;
+          setState(() {
+            _isTraining = false;
+            _logs += "Training error: $e\n";
+          });
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isTraining = false;
+        _logs += "Training connection error: $e\n";
+      });
     }
   }
 
@@ -308,7 +375,9 @@ class _ArenaScreenState extends State<ArenaScreen> {
   }
 
   @override
+  @override
   Widget build(BuildContext context) {
+    super.build(context);  // Required for AutomaticKeepAliveClientMixin
     return Scaffold(
       appBar: AppBar(title: const Text("Arena: Bot vs Stockfish")),
       body: Row(
@@ -421,7 +490,14 @@ class _ArenaScreenState extends State<ArenaScreen> {
                                         ),
                                       ],
                                     ],
-                                  )
+                                  ),
+                                  const SizedBox(height: 8),
+                                  ElevatedButton.icon(
+                                    icon: const Icon(Icons.school),
+                                    label: Text(_isTraining ? "Training..." : "Learn from History"),
+                                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                                    onPressed: _isTraining ? null : _learnFromHistory,
+                                  ),
                                 ],
                               ),
                             ),

@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_chess_board/flutter_chess_board.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
 import 'analytics_screen.dart'; 
 import 'arena_screen.dart'; // Import Arena Screen
+import 'parameters_screen.dart'; // Import Parameters Screen
 
 void main() {
-  runApp(const MyApp());
+  runApp(const ProviderScope(child: ChessApp()));
 }
 
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class ChessApp extends StatelessWidget {
+  const ChessApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -164,6 +166,13 @@ class _MyHomePageState extends State<MyHomePage> {
                 tooltip: "Arena (Vs Stockfish)",
                 onPressed: () {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => ArenaScreen(baseUrl: baseUrl)));
+                }
+            ),
+            IconButton(
+                icon: const Icon(Icons.tune), 
+                tooltip: "Bot Parameters",
+                onPressed: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => ParametersScreen(baseUrl: baseUrl)));
                 }
             ),
             IconButton(
