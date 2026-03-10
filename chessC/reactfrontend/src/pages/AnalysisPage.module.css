@@ -1,0 +1,312 @@
+.layout {
+  display: grid;
+  grid-template-columns: auto 340px;
+  gap: 24px;
+  max-width: 1060px;
+  margin: 0 auto;
+  align-items: start;
+}
+
+.left { display: flex; flex-direction: column; gap: 14px; }
+
+/* ── Mode tabs ── */
+.tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+  width: fit-content;
+}
+
+.tab {
+  padding: 5px 18px;
+  border-radius: 5px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: background 0.15s, color 0.15s;
+}
+.tab:hover { color: var(--text); }
+
+.tabActive {
+  padding: 5px 18px;
+  border-radius: 5px;
+  border: none;
+  background: var(--card);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* ── PGN textarea ── */
+.pgnInputWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pgnTextarea {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 0.8rem;
+  font-family: 'Courier New', monospace;
+  resize: vertical;
+  line-height: 1.5;
+}
+.pgnTextarea:focus { outline: none; border-color: var(--accent); }
+
+/* ── PGN navigation ── */
+.navRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.navBtn {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 5px;
+  padding: 4px 10px;
+  font-size: 0.85rem;
+  transition: background 0.12s;
+}
+.navBtn:hover { background: var(--accent); border-color: var(--accent); }
+
+.plyLabel {
+  flex: 1;
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── PGN move list in right panel ── */
+.pgnMoveList {
+  padding: 10px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 4px;
+  max-height: 180px;
+  overflow-y: auto;
+  font-size: 0.82rem;
+  line-height: 1.8;
+}
+
+.moveNum {
+  color: var(--muted);
+  margin-right: 2px;
+}
+
+.moveBtn {
+  padding: 1px 5px;
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--text);
+  transition: background 0.1s;
+}
+.moveBtn:hover { background: var(--card); }
+
+.moveActive {
+  padding: 1px 5px;
+  border-radius: 3px;
+  cursor: pointer;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.fenBar {
+  display: flex;
+  gap: 8px;
+}
+
+.fenInput {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 7px 12px;
+  font-size: 0.82rem;
+  font-family: 'Courier New', monospace;
+}
+.fenInput:focus { outline: none; border-color: var(--accent); }
+
+.boardWrap { width: min(520px, calc(100vw - 420px)); }
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.label { font-size: 0.88rem; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+
+.numInput {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 5px;
+  padding: 4px 8px;
+  width: 60px;
+  font-size: 0.88rem;
+}
+
+.btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 7px 18px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  transition: opacity 0.15s;
+}
+.btn:hover { opacity: 0.85; }
+
+.btnStop {
+  background: #7f1d1d;
+  color: #fca5a5;
+  border: 1px solid #991b1b;
+  border-radius: 6px;
+  padding: 7px 18px;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.btnSecondary {
+  background: var(--card);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 14px;
+  font-size: 0.88rem;
+}
+.btnSecondary:hover { color: var(--text); }
+
+.bestmove { font-size: 0.88rem; color: var(--positive); }
+.error    { font-size: 0.83rem; color: var(--negative); }
+
+/* ── Board + EvalBar row ── */
+.boardRow {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+
+/* ── Move quality bar (below board) ── */
+.moveQualityBar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 12px;
+  margin-top: 6px;
+  font-size: 0.85rem;
+}
+
+.qualityPill { font-weight: 500; }
+.qualityPill[data-q="blunder"]    { color: #ef4444; }
+.qualityPill[data-q="mistake"]    { color: #f97316; }
+.qualityPill[data-q="inaccuracy"] { color: #eab308; }
+.qualityPill[data-q="good"]       { color: var(--positive); }
+
+.bestWas { color: var(--muted); font-size: 0.82rem; }
+
+/* Quality dot in move list (superscript emoji) */
+.qualityDot { font-size: 0.6rem; margin-left: 2px; line-height: 1; }
+
+/* ── Auto-on button ── */
+.btnAutoOn {
+  background: #1d4ed8;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 7px 14px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  transition: opacity 0.15s;
+}
+.btnAutoOn:hover { opacity: 0.85; }
+
+/* ── Evaluate progress ── */
+.evalProgress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.btnMini {
+  background: #7f1d1d;
+  color: #fca5a5;
+  border: 1px solid #991b1b;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+
+/* ── right panel ── */
+.right {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: sticky;
+  top: 76px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.cardTitle {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pv {
+  padding: 12px 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 48px;
+}
+
+.pvMove {
+  font-size: 0.8rem;
+  font-family: 'Courier New', monospace;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  color: var(--text);
+}
+
+.empty { font-size: 0.85rem; color: var(--muted); }

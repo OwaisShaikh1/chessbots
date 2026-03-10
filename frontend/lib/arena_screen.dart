@@ -65,6 +65,7 @@ class _ArenaScreenState extends State<ArenaScreen> with AutomaticKeepAliveClient
   bool _isViewingHistory = false;
   bool _isPaused = false;
   bool _isTraining = false;
+  Timer? _battlePollTimer;
 
   Future<void> _togglePause() async {
     try {
@@ -164,105 +165,143 @@ class _ArenaScreenState extends State<ArenaScreen> with AutomaticKeepAliveClient
       _isPaused = false;
     });
 
-    final request = http.Request('POST', Uri.parse('${widget.baseUrl}/battle-stream'));
-    request.body = jsonEncode({
-      "iterations": _games,
-      "engine_path": _enginePath,
-      "elo": _elo,
-      "fen": _fen.isEmpty ? null : _fen,
-      "depth": _depth,
-      "bot_side": _botSide
-    });
-    request.headers['Content-Type'] = 'application/json';
-
+    final uri = Uri.parse('${widget.baseUrl}/battle-stream');
     try {
-      final response = await request.send();
-      _status = "Battle in Progress...";
-      
-      response.stream.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
-          if (line.isEmpty) return;
-          try {
-             final data = jsonDecode(line);
-             if (data['type'] == 'move') {
-                 setState(() {
-                     final session = _sessions.firstWhere((s) => s.id == data['game']);
-                     session.fens.add(data['fen']);
-                     session.moves.add(data['move_san']);
-                     
-                     // If we are currently viewing this session and NOT looking at history, update the board
-                     if (_activeSessionIndex != -1 && _sessions[_activeSessionIndex].id == data['game'] && !_isViewingHistory) {
-                        _sessions[_activeSessionIndex].historyIndex = session.fens.length - 1;
-                        controller.loadFen(data['fen']);
-                        final mat = _calculateMaterialFromFen(data['fen']);
-                        _whiteMat = mat['w']!;
-                        _blackMat = mat['b']!;
-                     }
-                 });
-             } else if (data['type'] == 'game_start') {
-                 setState(() {
-                     final newSession = GameSession(
-                       id: data['game'],
-                       white: data['white'],
-                       black: data['black'],
-                       fens: [_fen.isEmpty ? "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" : _fen],
-                       moves: [],
-                     );
-                     _sessions.add(newSession);
-                     
-                     // Automatically switch to the new game if it's the first one OR if we were on the previous game
-                     if (_activeSessionIndex == -1 || (_activeSessionIndex == _sessions.length - 2 && !_isViewingHistory)) {
-                        _activeSessionIndex = _sessions.length - 1;
-                        _isViewingHistory = false;
-                        controller.loadFen(newSession.fens[0]);
-                     }
-                     
-                     _logs = "Starting Game ${data['game']}: ${data['white']} vs ${data['black']}\n$_logs";
-                 });
-             } else if (data['type'] == 'info') {
-                 setState(() {
-                     _logs = "[INFO] ${data['message']}\n$_logs";
-                 });
-             } else if (data['type'] == 'warning') {
-                 setState(() {
-                     _logs = "[⚠️ WARNING] ${data['message']}\n$_logs";
-                 });
-             } else if (data['type'] == 'game_end') {
-                 setState(() {
-                     final session = _sessions.firstWhere((s) => s.id == data['game']);
-                     session.result = data['result'];
-                     _logs = "Game ${data['game']} Finished: ${data['result']}\n$_logs";
-                     _stats['w'] = data['current_stats']['w'];
-                     _stats['l'] = data['current_stats']['l'];
-                     _stats['d'] = data['current_stats']['d'];
-                 });
-             } else if (data['type'] == 'complete') {
-                 setState(() {
-                     _status = "Battle Complete!";
-                     _isBattling = false;
-                 });
-             } else if (data['type'] == 'error') {
-                 setState(() {
-                     _status = "Error: ${data['message']}";
-                     _isBattling = false;
-                 });
-             }
-          } catch (e) {
-             print("Parse Error: $e");
-          }
-      }, onDone: () {
-          if (_isBattling) {
-              setState(() {
-                  _isBattling = false;
-                  _status = "Connection Closed";
-              });
-          }
+      final resp = await http.post(uri,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            "iterations": _games,
+            "engine_path": _enginePath,
+            "elo": _elo,
+            "fen": _fen.isEmpty ? null : _fen,
+            "depth": _depth,
+            "bot_side": _botSide
+          }));
+
+      if (resp.statusCode != 200) {
+        setState(() {
+          _status = 'Server rejected battle: ${resp.statusCode}';
+          _isBattling = false;
+        });
+        return;
+      }
+
+      setState(() {
+        _status = 'Battle in Progress...';
       });
-      
+
+      // Start polling battle events and status
+      _battlePollTimer?.cancel();
+      _battlePollTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+        _pollBattleEvents();
+      });
     } catch (e) {
       setState(() {
         _status = "Connection Failed: $e";
         _isBattling = false;
       });
+    }
+  }
+
+  Future<void> _pollBattleEvents() async {
+    if (!_isBattling && _battlePollTimer == null) return;
+
+    try {
+      final eventsResp = await http.get(Uri.parse('${widget.baseUrl}/battle-events'));
+      if (eventsResp.statusCode == 200 && eventsResp.body.isNotEmpty) {
+        final lines = LineSplitter.split(eventsResp.body);
+        for (final line in lines) {
+          if (line.isEmpty) continue;
+          try {
+            final data = jsonDecode(line);
+            if (data['type'] == 'move') {
+              setState(() {
+                final session = _sessions.firstWhere((s) => s.id == data['game']);
+                session.fens.add(data['fen']);
+                session.moves.add(data['move_san']);
+
+                if (_activeSessionIndex != -1 && _sessions[_activeSessionIndex].id == data['game'] && !_isViewingHistory) {
+                  _sessions[_activeSessionIndex].historyIndex = session.fens.length - 1;
+                  controller.loadFen(data['fen']);
+                  final mat = _calculateMaterialFromFen(data['fen']);
+                  _whiteMat = mat['w']!;
+                  _blackMat = mat['b']!;
+                }
+              });
+            } else if (data['type'] == 'game_start') {
+              setState(() {
+                final newSession = GameSession(
+                  id: data['game'],
+                  white: data['white'],
+                  black: data['black'],
+                  fens: [_fen.isEmpty ? "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" : _fen],
+                  moves: [],
+                );
+                _sessions.add(newSession);
+                if (_activeSessionIndex == -1 || (_activeSessionIndex == _sessions.length - 2 && !_isViewingHistory)) {
+                  _activeSessionIndex = _sessions.length - 1;
+                  _isViewingHistory = false;
+                  controller.loadFen(newSession.fens[0]);
+                }
+                _logs = "Starting Game ${data['game']}: ${data['white']} vs ${data['black']}\n$_logs";
+              });
+            } else if (data['type'] == 'info') {
+              setState(() {
+                _logs = "[INFO] ${data['message']}\n$_logs";
+              });
+            } else if (data['type'] == 'warning') {
+              setState(() {
+                _logs = "[⚠️ WARNING] ${data['message']}\n$_logs";
+              });
+            } else if (data['type'] == 'game_end') {
+              setState(() {
+                final session = _sessions.firstWhere((s) => s.id == data['game']);
+                session.result = data['result'];
+                _logs = "Game ${data['game']} Finished: ${data['result']}\n$_logs";
+                _stats['w'] = data['current_stats']['w'];
+                _stats['l'] = data['current_stats']['l'];
+                _stats['d'] = data['current_stats']['d'];
+              });
+            } else if (data['type'] == 'complete') {
+              setState(() {
+                _status = "Battle Complete!";
+                _isBattling = false;
+              });
+              // Stop polling
+              _battlePollTimer?.cancel();
+              _battlePollTimer = null;
+            } else if (data['type'] == 'error') {
+              setState(() {
+                _status = "Error: ${data['message']}";
+                _isBattling = false;
+              });
+              _battlePollTimer?.cancel();
+              _battlePollTimer = null;
+            }
+          } catch (e) {
+            // ignore parse errors for individual lines
+          }
+        }
+      }
+
+      // Poll status endpoint to update running/paused flags and basic stats
+      final statusResp = await http.get(Uri.parse('${widget.baseUrl}/battle-status'));
+      if (statusResp.statusCode == 200) {
+        final s = jsonDecode(statusResp.body);
+        setState(() {
+          _isBattling = s['running'] == true;
+          _isPaused = s['paused'] == true;
+          _stats['w'] = s['wins'] ?? _stats['w'];
+          _stats['l'] = s['losses'] ?? _stats['l'];
+          _stats['d'] = s['draws'] ?? _stats['d'];
+        });
+        if (!(s['running'] == true)) {
+          _battlePollTimer?.cancel();
+          _battlePollTimer = null;
+        }
+      }
+    } catch (e) {
+      // network error — keep trying until stopped
     }
   }
 
@@ -373,8 +412,12 @@ class _ArenaScreenState extends State<ArenaScreen> with AutomaticKeepAliveClient
       _updateMaterial();
     });
   }
-
   @override
+  void dispose() {
+    _battlePollTimer?.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);  // Required for AutomaticKeepAliveClientMixin

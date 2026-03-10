@@ -1,0 +1,86 @@
+.layout {
+  display: grid;
+  grid-template-columns: auto 320px;
+  gap: 24px;
+  align-items: start;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.left { display: flex; flex-direction: column; gap: 16px; }
+
+.settings {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 18px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.settings label { display: flex; align-items: center; gap: 8px; }
+
+.settings select,
+.depthInput {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 5px;
+  padding: 4px 8px;
+  font-size: 0.9rem;
+  width: 80px;
+}
+
+.boardRow {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.boardWrap { width: min(560px, calc(100vw - 380px)); }
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.status {
+  flex: 1;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: opacity 0.15s;
+}
+.btn:hover { opacity: 0.85; }
+
+.btnSecondary {
+  background: var(--card);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 20px;
+  font-size: 0.9rem;
+  transition: color 0.15s;
+}
+.btnSecondary:hover { color: var(--text); }
+
+.right {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: sticky;
+  top: 76px;
+}
