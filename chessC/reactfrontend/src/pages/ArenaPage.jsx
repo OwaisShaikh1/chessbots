@@ -1,7 +1,7 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Chessboard } from 'react-chessboard'
 import { Chess } from 'chess.js'
-import { startBotBattle } from '../api'
+import { getEngines, evaluatePositionWithEngine } from '../api'
 import MoveList from '../components/MoveList'
 import styles from './ArenaPage.module.css'
 
@@ -13,20 +13,39 @@ export default function ArenaPage() {
   const [running, setRunning]       = useState(false)
   const [result, setResult]         = useState('')
   const [scores, setScores]         = useState({ white: 0, draw: 0, black: 0 })
+  const [engines, setEngines]       = useState([{ id: 'default', engine_id: null, exists: true }])
+  const [whiteEngineId, setWhiteEngineId] = useState('default')
+  const [blackEngineId, setBlackEngineId] = useState('default')
   const stopRef = useRef(false)
+
+  useEffect(() => {
+    let mounted = true
+    getEngines()
+      .then((data) => {
+        if (!mounted) return
+        const available = (data.engines || []).filter(e => e.exists)
+        if (available.length > 0) {
+          setEngines(available)
+          if (!available.find(e => e.id === whiteEngineId)) setWhiteEngineId(available[0].id)
+          if (!available.find(e => e.id === blackEngineId)) setBlackEngineId(available[0].id)
+        }
+      })
+      .catch(() => {
+        if (!mounted) return
+        setEngines([{ id: 'default', engine_id: null, exists: true }])
+        setWhiteEngineId('default')
+        setBlackEngineId('default')
+      })
+    return () => { mounted = false }
+  }, [])
 
   function cloneGame(g) { const c = new Chess(); c.loadPgn(g.pgn()); return c }
 
-  async function fetchBestmove(fen, depth) {
+  async function fetchBestmove(fen, depth, engineId) {
     // In local mode, call the backend; gracefully skip if unavailable
     try {
-      const res = await fetch('/api/engine/evaluate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fen, depth })
-      })
-      if (!res.ok) throw new Error()
-      const data = await res.json()
+      const payloadId = engineId === 'default' ? null : engineId
+      const data = await evaluatePositionWithEngine(fen, depth, payloadId)
       return data.bestmove
     } catch {
       return null
@@ -41,14 +60,19 @@ export default function ArenaPage() {
     let current = fresh
     while (!current.isGameOver() && !stopRef.current) {
       const depth  = current.turn() === 'w' ? depthWhite : depthBlack
-      const bm = await fetchBestmove(current.fen(), depth)
+      const engineId = current.turn() === 'w' ? whiteEngineId : blackEngineId
+      const bm = await fetchBestmove(current.fen(), depth, engineId)
       if (!bm || stopRef.current) break
 
       const from  = bm.slice(0, 2)
       const to    = bm.slice(2, 4)
       const promo = bm[4] || 'q'
       const updated = cloneGame(current)
-      updated.move({ from, to, promotion: promo })
+      const applied = updated.move({ from, to, promotion: promo })
+      if (!applied) {
+        setResult(`Engine returned invalid move: ${bm}`)
+        break
+      }
       current = updated
       setGame(cloneGame(updated))
 
@@ -104,6 +128,22 @@ export default function ArenaPage() {
             Black depth&nbsp;
             <input type="number" min={1} max={20} value={depthBlack}
               onChange={e => setDepthBlack(Number(e.target.value))} className={styles.numInput} />
+          </label>
+          <label>
+            White engine&nbsp;
+            <select value={whiteEngineId} onChange={e => setWhiteEngineId(e.target.value)}>
+              {engines.map((engine) => (
+                <option key={`white-${engine.id}`} value={engine.id}>{engine.id}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Black engine&nbsp;
+            <select value={blackEngineId} onChange={e => setBlackEngineId(e.target.value)}>
+              {engines.map((engine) => (
+                <option key={`black-${engine.id}`} value={engine.id}>{engine.id}</option>
+              ))}
+            </select>
           </label>
           <label>
             Delay (ms)&nbsp;

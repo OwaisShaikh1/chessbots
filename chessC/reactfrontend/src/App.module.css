@@ -39,3 +39,20 @@
   flex: 1;
   padding: 24px;
 }
+
+@media (max-width: 760px) {
+  .nav {
+    gap: 10px;
+    padding: 8px 12px;
+    height: auto;
+    flex-wrap: wrap;
+  }
+
+  .logo {
+    margin-right: 8px;
+  }
+
+  .main {
+    padding: 14px;
+  }
+}

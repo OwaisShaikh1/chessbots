@@ -1,0 +1,62 @@
+[
+{
+  "directory": "C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/build",
+  "command": "C:\\Users\\OWAIS\\scoop\\apps\\gcc\\current\\bin\\g++.exe -I\"C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/include\" -std=c++17 -Wall -Wextra -Wpedantic -o CMakeFiles\\chessbot.dir\\src\\board.cpp.obj -c \"C:\\Users\\OWAIS\\MyStuff\\Projects\\AAAA My projects\\Games\\chess\\chessC\\engine\\src\\board.cpp\"",
+  "file": "C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/src/board.cpp",
+  "output": "C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/build/CMakeFiles/chessbot.dir/src/board.cpp.obj"
+},
+{
+  "directory": "C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/build",
+  "command": "C:\\Users\\OWAIS\\scoop\\apps\\gcc\\current\\bin\\g++.exe -I\"C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/include\" -std=c++17 -Wall -Wextra -Wpedantic -o CMakeFiles\\chessbot.dir\\src\\pawn_moves.cpp.obj -c \"C:\\Users\\OWAIS\\MyStuff\\Projects\\AAAA My projects\\Games\\chess\\chessC\\engine\\src\\pawn_moves.cpp\"",
+  "file": "C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/src/pawn_moves.cpp",
+  "output": "C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/build/CMakeFiles/chessbot.dir/src/pawn_moves.cpp.obj"
+},
+{
+  "directory": "C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/build",
+  "command": "C:\\Users\\OWAIS\\scoop\\apps\\gcc\\current\\bin\\g++.exe -I\"C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/include\" -std=c++17 -Wall -Wextra -Wpedantic -o CMakeFiles\\chessbot.dir\\src\\knight_moves.cpp.obj -c \"C:\\Users\\OWAIS\\MyStuff\\Projects\\AAAA My projects\\Games\\chess\\chessC\\engine\\src\\knight_moves.cpp\"",
+  "file": "C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/src/knight_moves.cpp",
+  "output": "C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/build/CMakeFiles/chessbot.dir/src/knight_moves.cpp.obj"
+},
+{
+  "directory": "C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/build",
+  "command": "C:\\Users\\OWAIS\\scoop\\apps\\gcc\\current\\bin\\g++.exe -I\"C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/include\" -std=c++17 -Wall -Wextra -Wpedantic -o CMakeFiles\\chessbot.dir\\src\\bishop_moves.cpp.obj -c \"C:\\Users\\OWAIS\\MyStuff\\Projects\\AAAA My projects\\Games\\chess\\chessC\\engine\\src\\bishop_moves.cpp\"",
+  "file": "C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/src/bishop_moves.cpp",
+  "output": "C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/build/CMakeFiles/chessbot.dir/src/bishop_moves.cpp.obj"
+},
+{
+  "directory": "C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/build",
+  "command": "C:\\Users\\OWAIS\\scoop\\apps\\gcc\\current\\bin\\g++.exe -I\"C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/include\" -std=c++17 -Wall -Wextra -Wpedantic -o CMakeFiles\\chessbot.dir\\src\\rook_moves.cpp.obj -c \"C:\\Users\\OWAIS\\MyStuff\\Projects\\AAAA My projects\\Games\\chess\\chessC\\engine\\src\\rook_moves.cpp\"",
+  "file": "C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/src/rook_moves.cpp",
+  "output": "C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/build/CMakeFiles/chessbot.dir/src/rook_moves.cpp.obj"
+},
+{
+  "directory": "C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/build",
+  "command": "C:\\Users\\OWAIS\\scoop\\apps\\gcc\\current\\bin\\g++.exe -I\"C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/include\" -std=c++17 -Wall -Wextra -Wpedantic -o CMakeFiles\\chessbot.dir\\src\\queen_moves.cpp.obj -c \"C:\\Users\\OWAIS\\MyStuff\\Projects\\AAAA My projects\\Games\\chess\\chessC\\engine\\src\\queen_moves.cpp\"",
+  "file": "C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/src/queen_moves.cpp",
+  "output": "C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/build/CMakeFiles/chessbot.dir/src/queen_moves.cpp.obj"
+},
+{
+  "directory": "C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/build",
+  "command": "C:\\Users\\OWAIS\\scoop\\apps\\gcc\\current\\bin\\g++.exe -I\"C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/include\" -std=c++17 -Wall -Wextra -Wpedantic -o CMakeFiles\\chessbot.dir\\src\\king_moves.cpp.obj -c \"C:\\Users\\OWAIS\\MyStuff\\Projects\\AAAA My projects\\Games\\chess\\chessC\\engine\\src\\king_moves.cpp\"",
+  "file": "C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/src/king_moves.cpp",
+  "output": "C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/build/CMakeFiles/chessbot.dir/src/king_moves.cpp.obj"
+},
+{
+  "directory": "C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/build",
+  "command": "C:\\Users\\OWAIS\\scoop\\apps\\gcc\\current\\bin\\g++.exe -I\"C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/include\" -std=c++17 -Wall -Wextra -Wpedantic -o CMakeFiles\\chessbot.dir\\src\\position_heuristics.cpp.obj -c \"C:\\Users\\OWAIS\\MyStuff\\Projects\\AAAA My projects\\Games\\chess\\chessC\\engine\\src\\position_heuristics.cpp\"",
+  "file": "C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/src/position_heuristics.cpp",
+  "output": "C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/build/CMakeFiles/chessbot.dir/src/position_heuristics.cpp.obj"
+},
+{
+  "directory": "C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/build",
+  "command": "C:\\Users\\OWAIS\\scoop\\apps\\gcc\\current\\bin\\g++.exe -I\"C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/include\" -std=c++17 -Wall -Wextra -Wpedantic -o CMakeFiles\\chessbot.dir\\src\\move_generator.cpp.obj -c \"C:\\Users\\OWAIS\\MyStuff\\Projects\\AAAA My projects\\Games\\chess\\chessC\\engine\\src\\move_generator.cpp\"",
+  "file": "C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/src/move_generator.cpp",
+  "output": "C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/build/CMakeFiles/chessbot.dir/src/move_generator.cpp.obj"
+},
+{
+  "directory": "C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/build",
+  "command": "C:\\Users\\OWAIS\\scoop\\apps\\gcc\\current\\bin\\g++.exe -I\"C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/include\" -std=c++17 -Wall -Wextra -Wpedantic -o CMakeFiles\\chessbot.dir\\src\\main.cpp.obj -c \"C:\\Users\\OWAIS\\MyStuff\\Projects\\AAAA My projects\\Games\\chess\\chessC\\engine\\src\\main.cpp\"",
+  "file": "C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/src/main.cpp",
+  "output": "C:/Users/OWAIS/MyStuff/Projects/AAAA My projects/Games/chess/chessC/engine/build/CMakeFiles/chessbot.dir/src/main.cpp.obj"
+}
+]
