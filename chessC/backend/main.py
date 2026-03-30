@@ -10,17 +10,22 @@ Endpoints:
   WS   /ws/analysis
 """
 import asyncio
+import datetime
 import json
+import logging
 import platform
 import subprocess
+import time
 import uuid
-from typing import Any, Optional
+from typing import Any, Awaitable, Callable, Optional
 
 import chess
 import chess.pgn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
+logger = logging.getLogger("chessbot.arena")
 
 # ── Engine path ────────────────────────────────────────────────────────────
 import pathlib
@@ -31,6 +36,9 @@ ENGINES_DIR = BASE / "engines"
 BOTS_DIR = BASE / "bots"
 ACTIVE_BOT_DIR = BOTS_DIR / "active"
 PST_CONFIG_PATH = BASE / "backend" / "pst_config.json"
+NOTES_DIR = BASE / "notes"
+POSITION_SETS_DIR = NOTES_DIR / "position_sets"
+ARENA_LOGS_DIR = NOTES_DIR / "arena_logs"
 
 PST_KEYS = ("p", "n", "b", "r", "q", "k_open", "k_end")
 
@@ -186,9 +194,16 @@ class EvaluateRequest(BaseModel):
 class BotBattleRequest(BaseModel):
     depth_white: int = 6
     depth_black: int = 6
+    movetime_white_ms: int = 0
+    movetime_black_ms: int = 0
     games: int = 1
     engine_white_id: Optional[str] = None
     engine_black_id: Optional[str] = None
+    position_set: Optional[str] = None
+    mirror_positions: bool = True
+    limit_positions: int = 500
+    max_plies: int = 300
+    return_games_in_response: bool = False
 
 
 class PstConfigRequest(BaseModel):
@@ -454,6 +469,85 @@ def _extract_search_summary(lines: list[str]) -> dict[str, Any]:
     }
 
 
+def _safe_set_id(raw: str) -> str:
+    return "".join(ch for ch in raw if ch.isalnum() or ch in ("_", "-", "."))
+
+
+def _position_set_file_path(set_id: str) -> pathlib.Path:
+    clean = _safe_set_id(set_id)
+    if not clean:
+        raise HTTPException(400, "Invalid position_set id")
+
+    candidates = [
+        POSITION_SETS_DIR / f"{clean}.txt",
+        POSITION_SETS_DIR / clean,
+    ]
+    for path in candidates:
+        if path.exists() and path.is_file():
+            return path
+
+    raise HTTPException(404, f"Position set '{set_id}' not found")
+
+
+def _load_position_set(set_id: str, limit_positions: int) -> list[str]:
+    path = _position_set_file_path(set_id)
+    fens: list[str] = []
+
+    with path.open("r", encoding="utf-8") as f:
+        for line in f:
+            fen = line.strip()
+            if not fen:
+                continue
+            try:
+                chess.Board(fen)
+            except Exception:
+                continue
+            fens.append(fen)
+            if len(fens) >= max(1, int(limit_positions)):
+                break
+
+    return fens
+
+
+def _list_position_sets() -> list[dict[str, Any]]:
+    if not POSITION_SETS_DIR.exists():
+        return []
+
+    entries: list[dict[str, Any]] = []
+    for path in sorted(POSITION_SETS_DIR.glob("*.txt"), key=lambda p: p.name.lower()):
+        count = 0
+        try:
+            with path.open("r", encoding="utf-8") as f:
+                for line in f:
+                    if line.strip():
+                        count += 1
+        except Exception:
+            count = 0
+
+        entries.append({
+            "id": path.stem,
+            "filename": path.name,
+            "count": count,
+            "path": str(path),
+        })
+    return entries
+
+
+def _winner_label(result: str) -> str:
+    if result == "1-0":
+        return "white"
+    if result == "0-1":
+        return "black"
+    if result == "1/2-1/2":
+        return "draw"
+    return "unknown"
+
+
+def _ensure_arena_dirs() -> None:
+    POSITION_SETS_DIR.mkdir(parents=True, exist_ok=True)
+    ARENA_LOGS_DIR.mkdir(parents=True, exist_ok=True)
+
+
 # ── Routes ───────────────────────────────────────────────────────────────────
 
 @app.post("/game/start")
@@ -586,24 +680,376 @@ async def get_analysis(game_id: str):
 
 @app.post("/bot-battle")
 async def bot_battle(req: BotBattleRequest):
+    return await _run_bot_battle_session(req)
+
+
+async def _run_bot_battle_session(
+    req: BotBattleRequest,
+    progress_cb: Optional[Callable[[dict[str, Any]], Awaitable[None]]] = None,
+) -> dict[str, Any]:
     _resolve_engine_path(req.engine_white_id)
     _resolve_engine_path(req.engine_black_id)
-    results = []
-    for _ in range(req.games):
-        board = chess.Board()
-        moves = []
-        while not board.is_game_over():
-            depth = req.depth_white if board.turn == chess.WHITE else req.depth_black
-            engine_id = req.engine_white_id if board.turn == chess.WHITE else req.engine_black_id
-            bm = await _engine_move(board.fen(), depth, engine_id, 0)
+
+    async def play_single_game(
+        initial_fen: str,
+        white_engine_id: Optional[str],
+        black_engine_id: Optional[str],
+        depth_white: int,
+        depth_black: int,
+        movetime_white_ms: int,
+        movetime_black_ms: int,
+        max_plies: int,
+        pair_index: int,
+        leg: int,
+    ) -> dict[str, Any]:
+        board = chess.Board(initial_fen)
+        moves: list[str] = []
+        move_log: list[dict[str, Any]] = []
+
+        await emit({
+            "type": "game_start",
+            "pair_index": pair_index,
+            "leg": leg,
+            "initial_fen": initial_fen,
+            "white_engine_id": white_engine_id,
+            "black_engine_id": black_engine_id,
+        })
+
+        for ply in range(1, max(1, int(max_plies)) + 1):
+            if board.is_game_over():
+                break
+
+            white_to_move = board.turn == chess.WHITE
+            depth = depth_white if white_to_move else depth_black
+            movetime_ms = movetime_white_ms if white_to_move else movetime_black_ms
+            engine_id = white_engine_id if white_to_move else black_engine_id
+
+            move_info = await _engine_move_info(board.fen(), depth, engine_id, movetime_ms)
+            bm = move_info["bestmove"]
+            used_fallback = False
+
             if not _is_legal_uci(board, bm):
                 bm = _first_legal_uci(board)
+                used_fallback = True
+
             if not bm:
                 break
+
             board.push_uci(bm)
             moves.append(bm)
-        results.append({"result": board.result(), "moves": moves})
-    return {"games": results}
+            move_entry = {
+                "ply": ply,
+                "turn": "white" if white_to_move else "black",
+                "engine_id": engine_id,
+                "depth_requested": depth,
+                "movetime_ms_requested": movetime_ms,
+                "engine_depth": move_info.get("depth", 0),
+                "engine_time_ms": move_info.get("time_ms", 0),
+                "score_cp": move_info.get("score", 0),
+                "move": bm,
+                "fallback_used": used_fallback,
+            }
+            move_log.append(move_entry)
+            await emit({
+                "type": "move",
+                "pair_index": pair_index,
+                "leg": leg,
+                "ply": ply,
+                "turn": move_entry["turn"],
+                "move": bm,
+                "fen": board.fen(),
+                "engine_id": engine_id,
+                "engine_depth": move_entry["engine_depth"],
+                "engine_time_ms": move_entry["engine_time_ms"],
+                "score_cp": move_entry["score_cp"],
+            })
+
+        result = board.result() if board.is_game_over() else "*"
+        return {
+            "initial_fen": initial_fen,
+            "final_fen": board.fen(),
+            "result": result,
+            "winner": _winner_label(result),
+            "plies": len(moves),
+            "moves": moves,
+            "move_log": move_log,
+        }
+
+    _ensure_arena_dirs()
+
+    white_depth = max(1, int(req.depth_white))
+    black_depth = max(1, int(req.depth_black))
+    white_time = max(0, int(req.movetime_white_ms))
+    black_time = max(0, int(req.movetime_black_ms))
+
+    games_out: list[dict[str, Any]] = []
+    session_id = uuid.uuid4().hex[:12]
+    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    async def emit(payload: dict[str, Any]) -> None:
+        if progress_cb:
+            await progress_cb(payload)
+
+    if req.position_set:
+        base_fens = _load_position_set(req.position_set, req.limit_positions)
+        if not base_fens:
+            raise HTTPException(400, f"Position set '{req.position_set}' is empty")
+
+        planned_total_games = len(base_fens) * (2 if req.mirror_positions else 1)
+        await emit({
+            "type": "started",
+            "mode": "fixed_positions",
+            "total_games": planned_total_games,
+            "position_set": req.position_set,
+        })
+
+        for index, fen in enumerate(base_fens, start=1):
+            g1 = await play_single_game(
+                initial_fen=fen,
+                white_engine_id=req.engine_white_id,
+                black_engine_id=req.engine_black_id,
+                depth_white=white_depth,
+                depth_black=black_depth,
+                movetime_white_ms=white_time,
+                movetime_black_ms=black_time,
+                max_plies=req.max_plies,
+                pair_index=index,
+                leg=1,
+            )
+            g1["pair_index"] = index
+            g1["leg"] = 1
+            g1["white_engine_id"] = req.engine_white_id
+            g1["black_engine_id"] = req.engine_black_id
+            games_out.append(g1)
+            await emit({
+                "type": "progress",
+                "completed_games": len(games_out),
+                "total_games": planned_total_games,
+                "pair_index": index,
+                "leg": 1,
+                "result": g1["result"],
+                "winner": g1["winner"],
+                "white_engine_id": g1["white_engine_id"],
+                "black_engine_id": g1["black_engine_id"],
+                "winner_engine_id": (
+                    g1["white_engine_id"] if g1["winner"] == "white"
+                    else g1["black_engine_id"] if g1["winner"] == "black"
+                    else None
+                ),
+            })
+
+            if req.mirror_positions:
+                g2 = await play_single_game(
+                    initial_fen=fen,
+                    white_engine_id=req.engine_black_id,
+                    black_engine_id=req.engine_white_id,
+                    depth_white=black_depth,
+                    depth_black=white_depth,
+                    movetime_white_ms=black_time,
+                    movetime_black_ms=white_time,
+                    max_plies=req.max_plies,
+                    pair_index=index,
+                    leg=2,
+                )
+                g2["pair_index"] = index
+                g2["leg"] = 2
+                g2["white_engine_id"] = req.engine_black_id
+                g2["black_engine_id"] = req.engine_white_id
+                games_out.append(g2)
+                await emit({
+                    "type": "progress",
+                    "completed_games": len(games_out),
+                    "total_games": planned_total_games,
+                    "pair_index": index,
+                    "leg": 2,
+                    "result": g2["result"],
+                    "winner": g2["winner"],
+                    "white_engine_id": g2["white_engine_id"],
+                    "black_engine_id": g2["black_engine_id"],
+                    "winner_engine_id": (
+                        g2["white_engine_id"] if g2["winner"] == "white"
+                        else g2["black_engine_id"] if g2["winner"] == "black"
+                        else None
+                    ),
+                })
+    else:
+        planned_total_games = max(1, int(req.games))
+        await emit({
+            "type": "started",
+            "mode": "startpos_random",
+            "total_games": planned_total_games,
+        })
+
+        for idx in range(planned_total_games):
+            pair_index = idx + 1
+            g = await play_single_game(
+                initial_fen=chess.STARTING_FEN,
+                white_engine_id=req.engine_white_id,
+                black_engine_id=req.engine_black_id,
+                depth_white=white_depth,
+                depth_black=black_depth,
+                movetime_white_ms=white_time,
+                movetime_black_ms=black_time,
+                max_plies=req.max_plies,
+                pair_index=pair_index,
+                leg=1,
+            )
+            g["pair_index"] = pair_index
+            g["leg"] = 1
+            g["white_engine_id"] = req.engine_white_id
+            g["black_engine_id"] = req.engine_black_id
+            games_out.append(g)
+            await emit({
+                "type": "progress",
+                "completed_games": len(games_out),
+                "total_games": planned_total_games,
+                "pair_index": pair_index,
+                "leg": 1,
+                "result": g["result"],
+                "winner": g["winner"],
+                "white_engine_id": g["white_engine_id"],
+                "black_engine_id": g["black_engine_id"],
+                "winner_engine_id": (
+                    g["white_engine_id"] if g["winner"] == "white"
+                    else g["black_engine_id"] if g["winner"] == "black"
+                    else None
+                ),
+            })
+
+    summary = {
+        "total_games": len(games_out),
+        "white_wins": 0,
+        "black_wins": 0,
+        "draws": 0,
+        "unfinished": 0,
+        "by_engine": {},
+    }
+
+    tracked_engine_ids = [req.engine_white_id or "default", req.engine_black_id or "default"]
+    for engine_id in tracked_engine_ids:
+        if engine_id not in summary["by_engine"]:
+            summary["by_engine"][engine_id] = {"wins": 0, "losses": 0, "draws": 0, "games": 0}
+
+    for g in games_out:
+        winner = g["winner"]
+        white_id = g.get("white_engine_id") or "default"
+        black_id = g.get("black_engine_id") or "default"
+
+        summary["by_engine"].setdefault(white_id, {"wins": 0, "losses": 0, "draws": 0, "games": 0})
+        summary["by_engine"].setdefault(black_id, {"wins": 0, "losses": 0, "draws": 0, "games": 0})
+        summary["by_engine"][white_id]["games"] += 1
+        summary["by_engine"][black_id]["games"] += 1
+
+        if winner == "white":
+            summary["white_wins"] += 1
+            summary["by_engine"][white_id]["wins"] += 1
+            summary["by_engine"][black_id]["losses"] += 1
+        elif winner == "black":
+            summary["black_wins"] += 1
+            summary["by_engine"][black_id]["wins"] += 1
+            summary["by_engine"][white_id]["losses"] += 1
+        elif winner == "draw":
+            summary["draws"] += 1
+            summary["by_engine"][white_id]["draws"] += 1
+            summary["by_engine"][black_id]["draws"] += 1
+        else:
+            summary["unfinished"] += 1
+
+    session_log = {
+        "schema": "arena_session_v1",
+        "session_id": session_id,
+        "timestamp": datetime.datetime.now().isoformat(timespec="seconds"),
+        "mode": "fixed_positions" if req.position_set else "startpos_random",
+        "request": req.model_dump(),
+        "settings": {
+            "engine_white_id": req.engine_white_id,
+            "engine_black_id": req.engine_black_id,
+            "depth_white": white_depth,
+            "depth_black": black_depth,
+            "movetime_white_ms": white_time,
+            "movetime_black_ms": black_time,
+            "position_set": req.position_set,
+            "mirror_positions": req.mirror_positions,
+            "limit_positions": req.limit_positions,
+            "max_plies": req.max_plies,
+        },
+        "summary": summary,
+        "games": games_out,
+    }
+
+    log_path = ARENA_LOGS_DIR / f"arena_{ts}_{session_id}.json"
+    log_path.write_text(json.dumps(session_log, indent=2), encoding="utf-8")
+
+    response: dict[str, Any] = {
+        "session_id": session_id,
+        "log_file": str(log_path),
+        "summary": summary,
+        "total_games": len(games_out),
+    }
+    if req.return_games_in_response:
+        response["games"] = games_out
+    return response
+
+
+@app.websocket("/ws/bot-battle")
+async def ws_bot_battle(ws: WebSocket):
+    await ws.accept()
+    try:
+        await ws.send_json({"type": "ready"})
+        payload = await asyncio.wait_for(ws.receive_json(), timeout=15)
+        req = BotBattleRequest(**payload)
+        logger.info(
+            "ws-bot-battle payload received: position_set=%s mirror=%s limit=%s white=%s black=%s",
+            req.position_set,
+            req.mirror_positions,
+            req.limit_positions,
+            req.engine_white_id or "default",
+            req.engine_black_id or "default",
+        )
+
+        event_counts: dict[str, int] = {}
+
+        async def send_progress(event: dict[str, Any]) -> None:
+            event_type = str(event.get("type", "unknown"))
+            event_counts[event_type] = event_counts.get(event_type, 0) + 1
+            if event_type != "move" or event_counts[event_type] % 100 == 1:
+                logger.info(
+                    "ws-bot-battle emit: type=%s pair=%s leg=%s completed=%s total=%s",
+                    event_type,
+                    event.get("pair_index"),
+                    event.get("leg"),
+                    event.get("completed_games"),
+                    event.get("total_games"),
+                )
+            await ws.send_json(event)
+
+        response = await _run_bot_battle_session(req, progress_cb=send_progress)
+        logger.info(
+            "ws-bot-battle done: total_games=%s counts=%s",
+            response.get("total_games"),
+            event_counts,
+        )
+        await ws.send_json({"type": "done", **response})
+    except WebSocketDisconnect:
+        logger.info("ws-bot-battle disconnected")
+        pass
+    except asyncio.TimeoutError:
+        try:
+            await ws.send_json({"type": "error", "message": "No battle payload received from client"})
+        except Exception:
+            pass
+        logger.warning("ws-bot-battle timeout waiting for client payload")
+    except Exception as e:
+        logger.exception("ws-bot-battle failed: %s", e)
+        try:
+            await ws.send_json({"type": "error", "message": str(e)})
+        except Exception:
+            pass
+
+
+@app.get("/position-sets")
+async def get_position_sets():
+    return {"sets": _list_position_sets()}
 
 
 @app.get("/engines")
@@ -672,6 +1118,7 @@ def _sync_engine_search(
     movetime_ms: int = 0,
 ) -> list[str]:
     """Blocking call to engine binary via UCI."""
+    proc: Optional[subprocess.Popen] = None
     try:
         engine_path = _resolve_engine_path(engine_id)
         proc = subprocess.Popen(
@@ -694,13 +1141,14 @@ def _sync_engine_search(
             + "isready\n"
             + f"position fen {fen}\n"
             + go_cmd + "\n"
+            + "quit\n"
         )
-        proc.stdin.write(cmds)
-        proc.stdin.flush()
+        timeout_s = max(1.0, (safe_movetime_ms / 1000.0) + 1.0)
+        out, _ = proc.communicate(cmds, timeout=timeout_s)
 
-        lines = []
-        while True:
-            line = proc.stdout.readline().strip()
+        lines: list[str] = []
+        for raw in out.splitlines():
+            line = raw.strip()
             if not line:
                 continue
             if line in ("uciok", "readyok"):
@@ -709,10 +1157,16 @@ def _sync_engine_search(
             if line.startswith("bestmove"):
                 break
 
-        proc.stdin.write("quit\n")
-        proc.stdin.flush()
-        proc.wait(timeout=2)
+        if not any(line.startswith("bestmove") for line in lines):
+            lines.append("bestmove (none)")
         return lines
+    except subprocess.TimeoutExpired:
+        if proc is not None:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+        return ["bestmove (none)"]
     except Exception as e:
         return [f"bestmove (none)"]
 

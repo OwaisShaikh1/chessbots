@@ -20,6 +20,8 @@ struct SearchControl {
     std::chrono::steady_clock::time_point deadline;
 };
 
+constexpr double PARTIAL_DEPTH_TRUST_RATIO = 0.30;
+
 bool same_move(const Move& a, const Move& b) {
     return a.from_row == b.from_row
         && a.from_col == b.from_col
@@ -201,6 +203,7 @@ ScoredMove choose_best_move(const Board& board, Color side, int depth, int movet
         depth_best.valid = false;
 
         bool depth_completed = true;
+        int completed_root_moves = 0;
         for (const Move& move : root_moves) {
             if (time_is_up(control)) {
                 depth_completed = false;
@@ -215,6 +218,8 @@ ScoredMove choose_best_move(const Board& board, Color side, int depth, int movet
                 depth_completed = false;
                 break;
             }
+
+            completed_root_moves++;
 
             if (!depth_best.valid || score > depth_best.score) {
                 depth_best.move = move;
@@ -231,8 +236,13 @@ ScoredMove choose_best_move(const Board& board, Color side, int depth, int movet
         }
 
         // Time-forced stop: keep previous completed depth, unless current depth
-        // already found a better fully evaluated move.
-        if (depth_best.valid && (!best_overall.valid || depth_best.score > best_overall.score)) {
+        // already has enough root coverage to trust this deeper result.
+        const double explored_ratio = static_cast<double>(completed_root_moves)
+                                    / static_cast<double>(root_moves.size());
+        const bool trust_current_depth = explored_ratio >= PARTIAL_DEPTH_TRUST_RATIO;
+        if (depth_best.valid && (trust_current_depth
+            || !best_overall.valid
+            || depth_best.score > best_overall.score)) {
             best_overall = depth_best;
         }
         break;

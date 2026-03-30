@@ -1,0 +1,50 @@
+{
+  "source": "C:\\Users\\OWAIS\\MyStuff\\Projects\\AAAA My projects\\Games\\chess\\chessC\\notes\\equal_opening_fens_depth10.txt",
+  "total_unique": 3129,
+  "chunk_size": 500,
+  "set_count": 7,
+  "sets": [
+    {
+      "id": "set_001",
+      "filename": "set_001.txt",
+      "count": 500,
+      "path": "C:\\Users\\OWAIS\\MyStuff\\Projects\\AAAA My projects\\Games\\chess\\chessC\\notes\\position_sets\\set_001.txt"
+    },
+    {
+      "id": "set_002",
+      "filename": "set_002.txt",
+      "count": 500,
+      "path": "C:\\Users\\OWAIS\\MyStuff\\Projects\\AAAA My projects\\Games\\chess\\chessC\\notes\\position_sets\\set_002.txt"
+    },
+    {
+      "id": "set_003",
+      "filename": "set_003.txt",
+      "count": 500,
+      "path": "C:\\Users\\OWAIS\\MyStuff\\Projects\\AAAA My projects\\Games\\chess\\chessC\\notes\\position_sets\\set_003.txt"
+    },
+    {
+      "id": "set_004",
+      "filename": "set_004.txt",
+      "count": 500,
+      "path": "C:\\Users\\OWAIS\\MyStuff\\Projects\\AAAA My projects\\Games\\chess\\chessC\\notes\\position_sets\\set_004.txt"
+    },
+    {
+      "id": "set_005",
+      "filename": "set_005.txt",
+      "count": 500,
+      "path": "C:\\Users\\OWAIS\\MyStuff\\Projects\\AAAA My projects\\Games\\chess\\chessC\\notes\\position_sets\\set_005.txt"
+    },
+    {
+      "id": "set_006",
+      "filename": "set_006.txt",
+      "count": 500,
+      "path": "C:\\Users\\OWAIS\\MyStuff\\Projects\\AAAA My projects\\Games\\chess\\chessC\\notes\\position_sets\\set_006.txt"
+    },
+    {
+      "id": "set_007",
+      "filename": "set_007.txt",
+      "count": 129,
+      "path": "C:\\Users\\OWAIS\\MyStuff\\Projects\\AAAA My projects\\Games\\chess\\chessC\\notes\\position_sets\\set_007.txt"
+    }
+  ]
+}

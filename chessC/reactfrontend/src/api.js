@@ -42,7 +42,53 @@ export const getAnalysis = (gameId) => get(`/analysis/${gameId}`)
 export const startBotBattle = (options) => post('/bot-battle', options)
 // options: { depth_white, depth_black, games, engine_white_id?: string|null, engine_black_id?: string|null }
 
+export function streamBotBattle(options, handlers = {}) {
+  const protocol = location.protocol === 'https:' ? 'wss' : 'ws'
+  const ws = new WebSocket(`${protocol}://${location.host}/ws/bot-battle`)
+  let completed = false
+
+  ws.onopen = () => {
+    ws.send(JSON.stringify(options || {}))
+  }
+
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data)
+    if (data.type === 'started') {
+      handlers.onStarted && handlers.onStarted(data)
+    } else if (data.type === 'ready') {
+      handlers.onReady && handlers.onReady(data)
+    } else if (data.type === 'game_start') {
+      handlers.onGameStart && handlers.onGameStart(data)
+    } else if (data.type === 'move') {
+      handlers.onMove && handlers.onMove(data)
+    } else if (data.type === 'progress') {
+      handlers.onProgress && handlers.onProgress(data)
+    } else if (data.type === 'done') {
+      completed = true
+      handlers.onDone && handlers.onDone(data)
+      ws.close()
+    } else if (data.type === 'error') {
+      completed = true
+      handlers.onError && handlers.onError(data)
+      ws.close()
+    }
+  }
+
+  ws.onerror = () => {
+    handlers.onError && handlers.onError({ message: 'WebSocket error during arena stream' })
+  }
+
+  ws.onclose = () => {
+    if (!completed) {
+      handlers.onError && handlers.onError({ message: 'Battle stream closed before completion' })
+    }
+  }
+
+  return () => ws.close()
+}
+
 export const getEngines = () => get('/engines')
+export const getPositionSets = () => get('/position-sets')
 
 /* ── PST config endpoints ─────────────────────────────────────── */
 
