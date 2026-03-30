@@ -170,6 +170,7 @@ games: dict[str, dict] = {}
 class StartGameRequest(BaseModel):
     color: str = "white"   # 'white' | 'black'
     depth: int = 10
+    movetime_ms: int = 0
     engine_id: Optional[str] = None
 
 class MoveRequest(BaseModel):
@@ -179,6 +180,7 @@ class MoveRequest(BaseModel):
 class EvaluateRequest(BaseModel):
     fen: str
     depth: int = 10
+    movetime_ms: int = 0
     engine_id: Optional[str] = None
 
 class BotBattleRequest(BaseModel):
@@ -417,6 +419,41 @@ def _first_legal_uci(board: chess.Board) -> Optional[str]:
     return move.uci() if move else None
 
 
+def _extract_search_summary(lines: list[str]) -> dict[str, Any]:
+    bestmove: Optional[str] = None
+    depth = 0
+    score = 0
+    pv = ""
+    time_ms = 0
+
+    for line in lines:
+        if line.startswith("bestmove"):
+            parts = line.split()
+            bestmove = parts[1] if len(parts) > 1 and parts[1] != "(none)" else None
+            continue
+
+        info = parse_info(line)
+        if not info:
+            continue
+
+        if "depth" in info:
+            depth = info["depth"]
+        if "score" in info:
+            score = info["score"]
+        if "pv" in info:
+            pv = info["pv"]
+        if "time" in info:
+            time_ms = info["time"]
+
+    return {
+        "bestmove": bestmove,
+        "depth": depth,
+        "score": score,
+        "pv": pv,
+        "time_ms": time_ms,
+    }
+
+
 # ── Routes ───────────────────────────────────────────────────────────────────
 
 @app.post("/game/start")
@@ -429,17 +466,21 @@ async def game_start(req: StartGameRequest):
         "history": [],
         "color": req.color,
         "depth": req.depth,
+        "movetime_ms": req.movetime_ms,
         "engine_id": req.engine_id,
     }
     response = {"game_id": game_id, "fen": board.fen()}
 
     # If player is black, engine plays first as white
     if req.color == "black":
-        bm = await _engine_move(board.fen(), req.depth, req.engine_id)
+        move_info = await _engine_move_info(board.fen(), req.depth, req.engine_id, req.movetime_ms)
+        bm = move_info["bestmove"]
         if bm:
             board.push_uci(bm)
             games[game_id]["history"].append(bm)
             response["engine_move"] = bm
+            response["engine_depth"] = move_info["depth"]
+            response["engine_time_ms"] = move_info["time_ms"]
             response["fen"] = board.fen()
 
     return response
@@ -462,7 +503,8 @@ async def move(req: MoveRequest):
         return {"fen": board.fen(), "game_over": True, "result": board.result()}
 
     # Engine replies
-    bm = await _engine_move(board.fen(), g["depth"], g.get("engine_id"))
+    move_info = await _engine_move_info(board.fen(), g["depth"], g.get("engine_id"), g.get("movetime_ms", 0))
+    bm = move_info["bestmove"]
     if not _is_legal_uci(board, bm):
         bm = _first_legal_uci(board)
     if bm:
@@ -472,6 +514,8 @@ async def move(req: MoveRequest):
     return {
         "fen": board.fen(),
         "engine_move": bm,
+        "engine_depth": move_info["depth"],
+        "engine_time_ms": move_info["time_ms"],
         "game_over": board.is_game_over(),
         "result": board.result() if board.is_game_over() else None,
     }
@@ -496,7 +540,7 @@ async def get_game(game_id: str):
 
 @app.post("/engine/evaluate")
 async def engine_evaluate(req: EvaluateRequest):
-    lines = await _engine_search_lines(req.fen, req.depth, req.engine_id)
+    lines = await _engine_search_lines(req.fen, req.depth, req.engine_id, req.movetime_ms)
     bestmove = None
     score = 0
     depth = 0
@@ -526,7 +570,7 @@ async def get_analysis(game_id: str):
         raise HTTPException(404, "Game not found")
     g = games[game_id]
     board: chess.Board = g["board"]
-    lines = await _engine_search_lines(board.fen(), g["depth"], g.get("engine_id"))
+    lines = await _engine_search_lines(board.fen(), g["depth"], g.get("engine_id"), g.get("movetime_ms", 0))
     bestmove, score, depth, pv = None, 0, 0, ""
     for line in lines:
         if line.startswith("bestmove"):
@@ -551,7 +595,7 @@ async def bot_battle(req: BotBattleRequest):
         while not board.is_game_over():
             depth = req.depth_white if board.turn == chess.WHITE else req.depth_black
             engine_id = req.engine_white_id if board.turn == chess.WHITE else req.engine_black_id
-            bm = await _engine_move(board.fen(), depth, engine_id)
+            bm = await _engine_move(board.fen(), depth, engine_id, 0)
             if not _is_legal_uci(board, bm):
                 bm = _first_legal_uci(board)
             if not bm:
@@ -587,9 +631,10 @@ async def ws_analysis(ws: WebSocket):
         data = await ws.receive_json()
         fen   = data.get("fen", chess.STARTING_FEN)
         depth = int(data.get("depth", 10))
+        movetime_ms = int(data.get("movetime_ms", 0))
         engine_id = data.get("engine_id")
 
-        lines = await _engine_search_lines(fen, depth, engine_id)
+        lines = await _engine_search_lines(fen, depth, engine_id, movetime_ms)
         for line in lines:
             if line.startswith("bestmove"):
                 parts = line.split()
@@ -609,13 +654,23 @@ async def ws_analysis(ws: WebSocket):
 
 # ── Engine subprocess helpers ─────────────────────────────────────────────
 
-async def _engine_search_lines(fen: str, depth: int, engine_id: Optional[str] = None) -> list[str]:
+async def _engine_search_lines(
+    fen: str,
+    depth: int,
+    engine_id: Optional[str] = None,
+    movetime_ms: int = 0,
+) -> list[str]:
     """Run engine synchronously in a thread pool to avoid blocking."""
     loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, _sync_engine_search, fen, depth, engine_id)
+    return await loop.run_in_executor(None, _sync_engine_search, fen, depth, engine_id, movetime_ms)
 
 
-def _sync_engine_search(fen: str, depth: int, engine_id: Optional[str] = None) -> list[str]:
+def _sync_engine_search(
+    fen: str,
+    depth: int,
+    engine_id: Optional[str] = None,
+    movetime_ms: int = 0,
+) -> list[str]:
     """Blocking call to engine binary via UCI."""
     try:
         engine_path = _resolve_engine_path(engine_id)
@@ -627,13 +682,18 @@ def _sync_engine_search(fen: str, depth: int, engine_id: Optional[str] = None) -
             text=True,
         )
         pst_path = str(PST_CONFIG_PATH).replace("\\", "/")
+        safe_depth = max(1, int(depth))
+        safe_movetime_ms = max(0, int(movetime_ms))
+        go_cmd = f"go depth {safe_depth}"
+        if safe_movetime_ms > 0:
+            go_cmd += f" movetime {safe_movetime_ms}"
         cmds = (
             "uci\n"
             + f"setoption name PstFile value {pst_path}\n"
             + "setoption name ReloadPst\n"
             + "isready\n"
             + f"position fen {fen}\n"
-            + f"go depth {depth}\n"
+            + go_cmd + "\n"
         )
         proc.stdin.write(cmds)
         proc.stdin.flush()
@@ -657,10 +717,21 @@ def _sync_engine_search(fen: str, depth: int, engine_id: Optional[str] = None) -
         return [f"bestmove (none)"]
 
 
-async def _engine_move(fen: str, depth: int, engine_id: Optional[str] = None) -> Optional[str]:
-    lines = await _engine_search_lines(fen, depth, engine_id)
-    for line in lines:
-        if line.startswith("bestmove"):
-            parts = line.split()
-            return parts[1] if len(parts) > 1 and parts[1] != "(none)" else None
-    return None
+async def _engine_move(
+    fen: str,
+    depth: int,
+    engine_id: Optional[str] = None,
+    movetime_ms: int = 0,
+) -> Optional[str]:
+    info = await _engine_move_info(fen, depth, engine_id, movetime_ms)
+    return info["bestmove"]
+
+
+async def _engine_move_info(
+    fen: str,
+    depth: int,
+    engine_id: Optional[str] = None,
+    movetime_ms: int = 0,
+) -> dict[str, Any]:
+    lines = await _engine_search_lines(fen, depth, engine_id, movetime_ms)
+    return _extract_search_summary(lines)

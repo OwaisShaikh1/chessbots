@@ -8,13 +8,17 @@ import { sendMove, startGame, streamAnalysis, getEngines } from '../api'
 import styles from './PlayPage.module.css'
 
 const DEFAULT_DEPTH = 10
+const DEFAULT_MOVE_TIME_MS = 1500
+const DEFAULT_TIME_MODE_DEPTH_CAP = 64
 
 export default function PlayPage() {
   const [game, setGame] = useState(new Chess())
   const [moveHistory, setMoveHistory] = useState([])
   const [gameId, setGameId] = useState(null)
   const [playerColor, setPlayerColor] = useState('white')
+  const [searchMode, setSearchMode] = useState('depth')
   const [depth, setDepth] = useState(DEFAULT_DEPTH)
+  const [moveTimeMs, setMoveTimeMs] = useState(DEFAULT_MOVE_TIME_MS)
   const [started, setStarted] = useState(false)
   const [thinking, setThinking] = useState(false)
   const [evalScore, setEvalScore] = useState(0)
@@ -47,6 +51,13 @@ export default function PlayPage() {
     return engineId === 'default' ? null : engineId
   }
 
+  function selectedSearchParams() {
+    if (searchMode === 'time') {
+      return { depth: DEFAULT_TIME_MODE_DEPTH_CAP, movetime_ms: Math.max(0, Number(moveTimeMs) || 0) }
+    }
+    return { depth: Math.max(1, Number(depth) || 1), movetime_ms: 0 }
+  }
+
   /* ── helpers ──────────────────────────────────────────────────── */
 
   const cloneGame = (g) => { const c = new Chess(); c.loadPgn(g.pgn()); return c }
@@ -75,7 +86,8 @@ export default function PlayPage() {
   async function fetchEngineMove(currentGame, gId) {
     setThinking(true)
     const fen = currentGame.fen()
-    const cleanup = streamAnalysis(fen, depth, (info) => {
+    const params = selectedSearchParams()
+    const cleanup = streamAnalysis(fen, params.depth, (info) => {
       if (info.score !== undefined) setEvalScore(info.score / 100)
       if (info.pv)    setPvLine(info.pv.split(' '))
       if (info.depth) setAnalysisDepth(info.depth)
@@ -87,7 +99,7 @@ export default function PlayPage() {
       if (san) setMoveHistory(prev => [...prev, san])
       updateStatus(updated)
       // For local fallback mode only (no backend game id), apply bestmove locally.
-    }, selectedEnginePayload())
+    }, selectedEnginePayload(), params.movetime_ms)
     return cleanup
   }
 
@@ -104,7 +116,13 @@ export default function PlayPage() {
 
     let gId = gameId
     try {
-      const res = await startGame({ color: playerColor, depth, engine_id: selectedEnginePayload() })
+      const params = selectedSearchParams()
+      const res = await startGame({
+        color: playerColor,
+        depth: params.depth,
+        movetime_ms: params.movetime_ms,
+        engine_id: selectedEnginePayload()
+      })
       gId = res.game_id
       setGameId(gId)
 
@@ -113,6 +131,9 @@ export default function PlayPage() {
         const { game: withEngineMove, san } = applyUciMove(fresh, res.engine_move)
         setGame(withEngineMove)
         if (san) setMoveHistory([san])
+        if (res?.engine_depth) {
+          setStatus(`Engine played at depth ${res.engine_depth}${res?.engine_time_ms ? ` in ${res.engine_time_ms}ms` : ''}.`)
+        }
       } else if (res?.fen) {
         setGame(gameFromFen(res.fen))
       }
@@ -165,6 +186,9 @@ export default function PlayPage() {
               setGame(withEngineMove)
               if (san) setMoveHistory(prev => [...prev, san])
               updateStatus(withEngineMove)
+              if (res?.engine_depth) {
+                setStatus(`Engine played at depth ${res.engine_depth}${res?.engine_time_ms ? ` in ${res.engine_time_ms}ms` : ''}.`)
+              }
               return
             }
             if (res?.fen) {
@@ -183,7 +207,7 @@ export default function PlayPage() {
       }
     }
     return true
-  }, [game, started, thinking, playerColor, gameId, depth])
+  }, [game, started, thinking, playerColor, gameId, depth, moveTimeMs, searchMode])
 
   /* ── reset ────────────────────────────────────────────────────── */
 
@@ -214,13 +238,31 @@ export default function PlayPage() {
               </select>
             </label>
             <label>
-              Engine depth&nbsp;
-              <input
-                type="number" min={1} max={20} value={depth}
-                onChange={e => setDepth(Number(e.target.value))}
-                className={styles.depthInput}
-              />
+              Search mode&nbsp;
+              <select value={searchMode} onChange={e => setSearchMode(e.target.value)}>
+                <option value="depth">Depth</option>
+                <option value="time">Time</option>
+              </select>
             </label>
+            {searchMode === 'depth' ? (
+              <label>
+                Engine depth&nbsp;
+                <input
+                  type="number" min={1} max={20} value={depth}
+                  onChange={e => setDepth(Number(e.target.value))}
+                  className={styles.depthInput}
+                />
+              </label>
+            ) : (
+              <label>
+                Move time (ms)&nbsp;
+                <input
+                  type="number" min={0} max={60000} step={100} value={moveTimeMs}
+                  onChange={e => setMoveTimeMs(Number(e.target.value))}
+                  className={styles.depthInput}
+                />
+              </label>
+            )}
             <label>
               Engine version&nbsp;
               <select value={engineId} onChange={e => setEngineId(e.target.value)}>

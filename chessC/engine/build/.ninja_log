@@ -3,10 +3,10 @@
 10	1040	7965053415873092	CMakeFiles/chessbot.dir/src/board.cpp.obj	2ce6d0ca8c0ccba4
 20	1038	7965053415963596	CMakeFiles/chessbot.dir/src/pawn_moves.cpp.obj	f120648cd8dc67aa
 55	1039	7965053416315225	CMakeFiles/chessbot.dir/src/king_moves.cpp.obj	83714d7683e4d98b
-27	851	7965070420322063	CMakeFiles/chessbot.dir/src/position_heuristics.cpp.obj	9ec5d0ae72f1cc64
+21	517	7965851258153457	CMakeFiles/chessbot.dir/src/position_heuristics.cpp.obj	9ec5d0ae72f1cc64
 35	1034	7965053416105461	CMakeFiles/chessbot.dir/src/bishop_moves.cpp.obj	e2ef5aa55e8f05de
 48	1041	7965053416248886	CMakeFiles/chessbot.dir/src/queen_moves.cpp.obj	b453aca51bfc26ec
-35	846	7965070420392030	CMakeFiles/chessbot.dir/src/move_generator.cpp.obj	5c215a52b1fa39e3
+28	421	7965851258223538	CMakeFiles/chessbot.dir/src/move_generator.cpp.obj	5c215a52b1fa39e3
 28	1037	7965053416045383	CMakeFiles/chessbot.dir/src/knight_moves.cpp.obj	677344e689287180
-42	850	7965070420466828	CMakeFiles/chessbot.dir/src/main.cpp.obj	b72a022afe56c232
-851	1333	7965070428553171	chessbot.exe	55089d3c0308d88b
+27	917	7965658218853973	CMakeFiles/chessbot.dir/src/main.cpp.obj	b72a022afe56c232
+518	782	7965851263114713	chessbot.exe	55089d3c0308d88b

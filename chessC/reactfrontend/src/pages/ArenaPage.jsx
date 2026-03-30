@@ -5,9 +5,14 @@ import { getEngines, evaluatePositionWithEngine } from '../api'
 import MoveList from '../components/MoveList'
 import styles from './ArenaPage.module.css'
 
+const DEFAULT_TIME_MODE_DEPTH_CAP = 64
+
 export default function ArenaPage() {
+  const [searchMode, setSearchMode] = useState('depth')
   const [depthWhite, setDepthWhite] = useState(6)
   const [depthBlack, setDepthBlack] = useState(6)
+  const [moveTimeWhiteMs, setMoveTimeWhiteMs] = useState(1500)
+  const [moveTimeBlackMs, setMoveTimeBlackMs] = useState(1500)
   const [delayMs, setDelayMs]       = useState(500)
   const [game, setGame]             = useState(new Chess())
   const [running, setRunning]       = useState(false)
@@ -41,11 +46,11 @@ export default function ArenaPage() {
 
   function cloneGame(g) { const c = new Chess(); c.loadPgn(g.pgn()); return c }
 
-  async function fetchBestmove(fen, depth, engineId) {
+  async function fetchBestmove(fen, depth, engineId, moveTimeMs) {
     // In local mode, call the backend; gracefully skip if unavailable
     try {
       const payloadId = engineId === 'default' ? null : engineId
-      const data = await evaluatePositionWithEngine(fen, depth, payloadId)
+      const data = await evaluatePositionWithEngine(fen, depth, payloadId, moveTimeMs)
       return data.bestmove
     } catch {
       return null
@@ -59,9 +64,16 @@ export default function ArenaPage() {
 
     let current = fresh
     while (!current.isGameOver() && !stopRef.current) {
-      const depth  = current.turn() === 'w' ? depthWhite : depthBlack
+      const depthValue = current.turn() === 'w' ? depthWhite : depthBlack
+      const timeValueMs = current.turn() === 'w' ? moveTimeWhiteMs : moveTimeBlackMs
+      const depth = searchMode === 'time'
+        ? DEFAULT_TIME_MODE_DEPTH_CAP
+        : Math.max(1, Number(depthValue) || 1)
+      const moveTimeMs = searchMode === 'time'
+        ? Math.max(0, Number(timeValueMs) || 0)
+        : 0
       const engineId = current.turn() === 'w' ? whiteEngineId : blackEngineId
-      const bm = await fetchBestmove(current.fen(), depth, engineId)
+      const bm = await fetchBestmove(current.fen(), depth, engineId, moveTimeMs)
       if (!bm || stopRef.current) break
 
       const from  = bm.slice(0, 2)
@@ -120,15 +132,39 @@ export default function ArenaPage() {
         {/* Settings */}
         <div className={styles.settings}>
           <label>
-            White depth&nbsp;
-            <input type="number" min={1} max={20} value={depthWhite}
-              onChange={e => setDepthWhite(Number(e.target.value))} className={styles.numInput} />
+            Search mode&nbsp;
+            <select value={searchMode} onChange={e => setSearchMode(e.target.value)}>
+              <option value="depth">Depth</option>
+              <option value="time">Time</option>
+            </select>
           </label>
-          <label>
-            Black depth&nbsp;
-            <input type="number" min={1} max={20} value={depthBlack}
-              onChange={e => setDepthBlack(Number(e.target.value))} className={styles.numInput} />
-          </label>
+          {searchMode === 'depth' ? (
+            <>
+              <label>
+                White depth&nbsp;
+                <input type="number" min={1} max={20} value={depthWhite}
+                  onChange={e => setDepthWhite(Number(e.target.value))} className={styles.numInput} />
+              </label>
+              <label>
+                Black depth&nbsp;
+                <input type="number" min={1} max={20} value={depthBlack}
+                  onChange={e => setDepthBlack(Number(e.target.value))} className={styles.numInput} />
+              </label>
+            </>
+          ) : (
+            <>
+              <label>
+                White move time (ms)&nbsp;
+                <input type="number" min={0} max={60000} step={100} value={moveTimeWhiteMs}
+                  onChange={e => setMoveTimeWhiteMs(Number(e.target.value))} className={styles.numInput} />
+              </label>
+              <label>
+                Black move time (ms)&nbsp;
+                <input type="number" min={0} max={60000} step={100} value={moveTimeBlackMs}
+                  onChange={e => setMoveTimeBlackMs(Number(e.target.value))} className={styles.numInput} />
+              </label>
+            </>
+          )}
           <label>
             White engine&nbsp;
             <select value={whiteEngineId} onChange={e => setWhiteEngineId(e.target.value)}>

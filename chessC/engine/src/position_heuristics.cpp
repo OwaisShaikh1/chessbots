@@ -263,7 +263,9 @@ int base_value(PieceType type) {
 }
 
 int square_bonus(PieceType type, Color color, int row, int col, int opening_weight) {
-    const int table_row = (color == Color::White) ? row : (7 - row);
+    // Board rows are rank-1..rank-8 (0..7), while PSTs are rank-8..rank-1.
+    // Mirror white pieces and keep black rows to preserve side symmetry.
+    const int table_row = (color == Color::White) ? (7 - row) : row;
     const int idx = table_row * 8 + col;
 
     switch (type) {

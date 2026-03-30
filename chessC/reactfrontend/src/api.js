@@ -20,7 +20,7 @@ async function get(path) {
 /* ── Game endpoints ────────────────────────────────────────────── */
 
 export const startGame = (options) => post('/game/start', options)
-// options: { color: 'white'|'black', depth: number, engine_id?: string|null }
+// options: { color: 'white'|'black', depth: number, movetime_ms?: number, engine_id?: string|null }
 
 export const sendMove = (gameId, move) => post('/move', { game_id: gameId, move })
 // move: UCI string e.g. 'e2e4'
@@ -30,10 +30,10 @@ export const getGame = (gameId) => get(`/game/${gameId}`)
 /* ── Engine / analysis endpoints ──────────────────────────────── */
 
 export const evaluatePosition = (fen, depth = 10) =>
-  post('/engine/evaluate', { fen, depth })
+  post('/engine/evaluate', { fen, depth, movetime_ms: 0 })
 
-export const evaluatePositionWithEngine = (fen, depth = 10, engineId = null) =>
-  post('/engine/evaluate', { fen, depth, engine_id: engineId })
+export const evaluatePositionWithEngine = (fen, depth = 10, engineId = null, movetimeMs = 0) =>
+  post('/engine/evaluate', { fen, depth, movetime_ms: movetimeMs, engine_id: engineId })
 
 export const getAnalysis = (gameId) => get(`/analysis/${gameId}`)
 
@@ -61,12 +61,12 @@ export const savePstConfig = (config) => post('/pst-config', { config })
  * @param {(info: AnalysisInfo) => void} onInfo
  * @param {() => void} onDone
  */
-export function streamAnalysis(fen, depth, onInfo, onDone, engineId = null) {
+export function streamAnalysis(fen, depth, onInfo, onDone, engineId = null, movetimeMs = 0) {
   const protocol = location.protocol === 'https:' ? 'wss' : 'ws'
   const ws = new WebSocket(`${protocol}://${location.host}/ws/analysis`)
 
   ws.onopen = () => {
-    ws.send(JSON.stringify({ fen, depth, engine_id: engineId }))
+    ws.send(JSON.stringify({ fen, depth, movetime_ms: movetimeMs, engine_id: engineId }))
   }
 
   ws.onmessage = (event) => {

@@ -106,19 +106,24 @@ int main() {
                 }
             }
         } else if (cmd == "go") {
-            int depth = 1;
+            int depth = 64;
+            int movetime_ms = 0;
             std::string token;
             while (ss >> token) {
                 if (token == "depth") {
-                    int parsed = 1;
+                    int parsed = 64;
                     if (ss >> parsed) {
                         depth = parsed;
                     }
-                    break;
+                } else if (token == "movetime") {
+                    int parsed = 0;
+                    if (ss >> parsed) {
+                        movetime_ms = parsed;
+                    }
                 }
             }
 
-            MoveGenerator::ScoredMove best = MoveGenerator::choose_best_move(board, side_to_move, depth);
+            MoveGenerator::ScoredMove best = MoveGenerator::choose_best_move(board, side_to_move, depth, movetime_ms);
             if (best.valid) {
                 std::cout << "bestmove " << to_uci(best.move) << "\n";
             } else {
