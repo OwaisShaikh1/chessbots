@@ -262,6 +262,115 @@ int base_value(PieceType type) {
     return 0;
 }
 
+Color opposite(Color c) {
+    return (c == Color::White) ? Color::Black : Color::White;
+}
+
+int rank_progress(Color color, int row) {
+    return (color == Color::White) ? row : (7 - row);
+}
+
+int side_material_no_king(const Board& board, Color side) {
+    int total = 0;
+    for (int row = 0; row < 8; ++row) {
+        for (int col = 0; col < 8; ++col) {
+            const Piece p = board.at(row, col);
+            if (p.color != side || p.type == PieceType::None || p.type == PieceType::King) {
+                continue;
+            }
+            total += base_value(p.type);
+        }
+    }
+    return total;
+}
+
+bool has_friendly_pawn_on_file(const Board& board, Color color, int file, int exclude_row) {
+    if (file < 0 || file >= 8) {
+        return false;
+    }
+
+    for (int row = 0; row < 8; ++row) {
+        if (row == exclude_row) {
+            continue;
+        }
+        const Piece p = board.at(row, file);
+        if (p.color == color && p.type == PieceType::Pawn) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool is_passed_pawn(const Board& board, Color color, int row, int col) {
+    const int dir = (color == Color::White) ? 1 : -1;
+    const Color enemy = opposite(color);
+
+    for (int file = col - 1; file <= col + 1; ++file) {
+        if (file < 0 || file >= 8) {
+            continue;
+        }
+
+        for (int r = row + dir; is_valid_square(r, file); r += dir) {
+            const Piece p = board.at(r, file);
+            if (p.color == enemy && p.type == PieceType::Pawn) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+int pawn_structure_bonus(const Board& board, Color color, int row, int col, int material_lead) {
+    static constexpr int kAdvanceBonus[8] = {0, 4, 9, 15, 24, 36, 52, 0};
+    static constexpr int kPassedBonus[8] = {0, 0, 12, 20, 34, 56, 84, 0};
+
+    const int progress = rank_progress(color, row);
+    int bonus = kAdvanceBonus[progress];
+
+    if (is_passed_pawn(board, color, row, col)) {
+        bonus += kPassedBonus[progress];
+    }
+
+    bool connected = false;
+    for (int dc : {-1, 1}) {
+        const int file = col + dc;
+        if (file < 0 || file >= 8) {
+            continue;
+        }
+        for (int dr = -1; dr <= 1; ++dr) {
+            const int r = row + dr;
+            if (!is_valid_square(r, file)) {
+                continue;
+            }
+            const Piece p = board.at(r, file);
+            if (p.color == color && p.type == PieceType::Pawn) {
+                connected = true;
+                break;
+            }
+        }
+        if (connected) {
+            break;
+        }
+    }
+
+    if (connected) {
+        bonus += 8;
+    }
+
+    const bool isolated = !has_friendly_pawn_on_file(board, color, col - 1, -1)
+        && !has_friendly_pawn_on_file(board, color, col + 1, -1);
+    if (isolated) {
+        bonus -= 10;
+    }
+
+    if (material_lead >= 300) {
+        bonus = (bonus * 3) / 2;
+    }
+
+    return bonus;
+}
+
 int square_bonus(PieceType type, Color color, int row, int col, int opening_weight) {
     // Board rows are rank-1..rank-8 (0..7), while PSTs are rank-8..rank-1.
     // Mirror white pieces and keep black rows to preserve side symmetry.
@@ -327,6 +436,7 @@ int evaluate_board(const Board& board, Color perspective) {
             }
 
             const int piece_score = base_value(piece.type) + square_bonus(piece.type, piece.color, row, col, opening_weight);
+
             if (piece.color == perspective) {
                 score += piece_score;
             } else {

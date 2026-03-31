@@ -1,12 +1,14 @@
 # ninja log v7
-42	1044	7965053416175451	CMakeFiles/chessbot.dir/src/rook_moves.cpp.obj	a3143eb6bf24cea6
-10	1040	7965053415873092	CMakeFiles/chessbot.dir/src/board.cpp.obj	2ce6d0ca8c0ccba4
-20	1038	7965053415963596	CMakeFiles/chessbot.dir/src/pawn_moves.cpp.obj	f120648cd8dc67aa
-55	1039	7965053416315225	CMakeFiles/chessbot.dir/src/king_moves.cpp.obj	83714d7683e4d98b
-20	525	7965863622695454	CMakeFiles/chessbot.dir/src/position_heuristics.cpp.obj	9ec5d0ae72f1cc64
-35	1034	7965053416105461	CMakeFiles/chessbot.dir/src/bishop_moves.cpp.obj	e2ef5aa55e8f05de
-48	1041	7965053416248886	CMakeFiles/chessbot.dir/src/queen_moves.cpp.obj	b453aca51bfc26ec
-27	483	7965863622765658	CMakeFiles/chessbot.dir/src/move_generator.cpp.obj	5c215a52b1fa39e3
-28	1037	7965053416045383	CMakeFiles/chessbot.dir/src/knight_moves.cpp.obj	677344e689287180
-27	917	7965658218853973	CMakeFiles/chessbot.dir/src/main.cpp.obj	b72a022afe56c232
-525	791	7965863627745283	chessbot.exe	55089d3c0308d88b
+48	647	7965998404237285	CMakeFiles/chessbot.dir/src/rook_moves.cpp.obj	a3143eb6bf24cea6
+19	698	7965998403949960	CMakeFiles/chessbot.dir/src/board.cpp.obj	2ce6d0ca8c0ccba4
+26	667	7965998404019937	CMakeFiles/chessbot.dir/src/pawn_moves.cpp.obj	f120648cd8dc67aa
+60	687	7965998404362433	CMakeFiles/chessbot.dir/src/king_moves.cpp.obj	83714d7683e4d98b
+18	472	7966009852904786	CMakeFiles/chessbot.dir/src/position_heuristics.cpp.obj	9ec5d0ae72f1cc64
+41	642	7965998404172992	CMakeFiles/chessbot.dir/src/bishop_moves.cpp.obj	e2ef5aa55e8f05de
+54	652	7965998404305052	CMakeFiles/chessbot.dir/src/queen_moves.cpp.obj	b453aca51bfc26ec
+19	519	7966013437405631	CMakeFiles/chessbot.dir/src/move_generator.cpp.obj	5c215a52b1fa39e3
+34	578	7965998404102968	CMakeFiles/chessbot.dir/src/knight_moves.cpp.obj	677344e689287180
+80	874	7965998404564392	CMakeFiles/chessbot.dir/src/main.cpp.obj	b72a022afe56c232
+520	746	7966013442409982	chessbot.exe	55089d3c0308d88b
+17	542	7966017581098669	CMakeFiles/chessbot.dir/src/move_generator.cpp.obj	5c215a52b1fa39e3
+543	782	7966017586346539	chessbot.exe	55089d3c0308d88b

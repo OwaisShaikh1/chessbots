@@ -426,12 +426,33 @@ def _is_legal_uci(board: chess.Board, move_uci: Optional[str]) -> bool:
     return move in board.legal_moves
 
 
+def _uci_legality_reason(board: chess.Board, move_uci: Optional[str]) -> Optional[str]:
+    if not move_uci:
+        return "empty"
+    try:
+        move = chess.Move.from_uci(move_uci)
+    except Exception:
+        return "parse_error"
+    if move not in board.legal_moves:
+        return "not_legal_in_position"
+    return None
+
+
 def _first_legal_uci(board: chess.Board) -> Optional[str]:
     try:
-        move = next(iter(board.legal_moves), None)
+        legal_moves = list(board.legal_moves)
     except Exception:
-        move = None
-    return move.uci() if move else None
+        legal_moves = []
+
+    if not legal_moves:
+        return None
+
+    # If we must fallback, prefer a legal promotion over arbitrary move order.
+    for move in legal_moves:
+        if move.promotion is not None:
+            return move.uci()
+
+    return legal_moves[0].uci()
 
 
 def _extract_search_summary(lines: list[str]) -> dict[str, Any]:
@@ -598,8 +619,10 @@ async def move(req: MoveRequest):
 
     # Engine replies
     move_info = await _engine_move_info(board.fen(), g["depth"], g.get("engine_id"), g.get("movetime_ms", 0))
-    bm = move_info["bestmove"]
-    if not _is_legal_uci(board, bm):
+    raw_bm = move_info["bestmove"]
+    bm = raw_bm
+    fallback_reason = _uci_legality_reason(board, bm)
+    if fallback_reason is not None:
         bm = _first_legal_uci(board)
     if bm:
         board.push_uci(bm)
@@ -608,6 +631,8 @@ async def move(req: MoveRequest):
     return {
         "fen": board.fen(),
         "engine_move": bm,
+        "engine_move_raw": raw_bm,
+        "engine_fallback_reason": fallback_reason,
         "engine_depth": move_info["depth"],
         "engine_time_ms": move_info["time_ms"],
         "game_over": board.is_game_over(),
@@ -725,10 +750,12 @@ async def _run_bot_battle_session(
             engine_id = white_engine_id if white_to_move else black_engine_id
 
             move_info = await _engine_move_info(board.fen(), depth, engine_id, movetime_ms)
-            bm = move_info["bestmove"]
+            raw_bm = move_info["bestmove"]
+            bm = raw_bm
             used_fallback = False
+            fallback_reason = _uci_legality_reason(board, bm)
 
-            if not _is_legal_uci(board, bm):
+            if fallback_reason is not None:
                 bm = _first_legal_uci(board)
                 used_fallback = True
 
@@ -748,6 +775,8 @@ async def _run_bot_battle_session(
                 "score_cp": move_info.get("score", 0),
                 "move": bm,
                 "fallback_used": used_fallback,
+                "engine_move_raw": raw_bm,
+                "fallback_reason": fallback_reason,
             }
             move_log.append(move_entry)
             await emit({
@@ -1143,7 +1172,12 @@ def _sync_engine_search(
             + go_cmd + "\n"
             + "quit\n"
         )
-        timeout_s = max(1.0, (safe_movetime_ms / 1000.0) + 1.0)
+        # Allow enough time for process startup + UCI handshake + search + quit.
+        # A tight timeout here can force `(none)` and trigger fallback moves.
+        if safe_movetime_ms > 0:
+            timeout_s = max(3.0, (safe_movetime_ms / 1000.0) + 3.0)
+        else:
+            timeout_s = 8.0
         out, _ = proc.communicate(cmds, timeout=timeout_s)
 
         lines: list[str] = []

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include "types.h"
 
 struct Move {
     int from_row = 0;
@@ -8,6 +9,7 @@ struct Move {
     int to_row = 0;
     int to_col = 0;
     bool is_capture = false;
+    PieceType promotion = PieceType::None;
 };
 
 inline std::string to_algebraic(int row, int col) {

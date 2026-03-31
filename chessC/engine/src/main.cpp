@@ -1,6 +1,8 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <vector>
+#include <cstdint>
 
 #include "../include/board.h"
 #include "../include/move_generator.h"
@@ -15,16 +17,46 @@ static Move parse_uci_move(const std::string& uci) {
     m.to_col = uci[2] - 'a';
     m.to_row = uci[3] - '1';
     m.is_capture = false;
+
+    if (uci.size() >= 5) {
+        switch (static_cast<char>(std::tolower(static_cast<unsigned char>(uci[4])))) {
+            case 'q': m.promotion = PieceType::Queen; break;
+            case 'r': m.promotion = PieceType::Rook; break;
+            case 'b': m.promotion = PieceType::Bishop; break;
+            case 'n': m.promotion = PieceType::Knight; break;
+            default:  m.promotion = PieceType::None; break;
+        }
+    }
+
     return m;
 }
 
 static std::string to_uci(const Move& m) {
-    return to_algebraic(m.from_row, m.from_col) + to_algebraic(m.to_row, m.to_col);
+    std::string uci = to_algebraic(m.from_row, m.from_col) + to_algebraic(m.to_row, m.to_col);
+    switch (m.promotion) {
+        case PieceType::Queen:
+            uci += 'q';
+            break;
+        case PieceType::Rook:
+            uci += 'r';
+            break;
+        case PieceType::Bishop:
+            uci += 'b';
+            break;
+        case PieceType::Knight:
+            uci += 'n';
+            break;
+        default:
+            break;
+    }
+    return uci;
 }
 
 int main() {
     Board board;
     Color side_to_move = Color::White;
+    std::vector<std::uint64_t> position_history_keys;
+    position_history_keys.push_back(MoveGenerator::position_key(board, side_to_move));
 
     std::string line;
     while (std::getline(std::cin, line)) {
@@ -70,6 +102,8 @@ int main() {
         } else if (cmd == "ucinewgame") {
             board = Board{};
             side_to_move = Color::White;
+            position_history_keys.clear();
+            position_history_keys.push_back(MoveGenerator::position_key(board, side_to_move));
         } else if (cmd == "position") {
             std::string token;
             ss >> token;
@@ -77,6 +111,8 @@ int main() {
             if (token == "startpos") {
                 board = Board{};
                 side_to_move = Color::White;
+                position_history_keys.clear();
+                position_history_keys.push_back(MoveGenerator::position_key(board, side_to_move));
                 ss >> token;
             } else if (token == "fen") {
                 std::string fen_fields[6];
@@ -94,6 +130,8 @@ int main() {
 
                 board.load_from_fen(fen);
                 side_to_move = (fen_fields[1] == "b") ? Color::Black : Color::White;
+                position_history_keys.clear();
+                position_history_keys.push_back(MoveGenerator::position_key(board, side_to_move));
                 ss >> token;
             }
 
@@ -103,6 +141,7 @@ int main() {
                     Move m = parse_uci_move(mv);
                     board.apply_move(m);
                     side_to_move = (side_to_move == Color::White) ? Color::Black : Color::White;
+                    position_history_keys.push_back(MoveGenerator::position_key(board, side_to_move));
                 }
             }
         } else if (cmd == "go") {
@@ -123,7 +162,13 @@ int main() {
                 }
             }
 
-            MoveGenerator::ScoredMove best = MoveGenerator::choose_best_move(board, side_to_move, depth, movetime_ms);
+            MoveGenerator::ScoredMove best = MoveGenerator::choose_best_move(
+                board,
+                side_to_move,
+                depth,
+                movetime_ms,
+                position_history_keys
+            );
             if (best.valid) {
                 std::cout << "bestmove " << to_uci(best.move) << "\n";
             } else {

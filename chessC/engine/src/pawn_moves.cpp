@@ -1,5 +1,28 @@
 #include "../include/pawn_moves.h"
 
+namespace {
+
+void append_pawn_move(std::vector<Move>& moves,
+                      int from_row,
+                      int from_col,
+                      int to_row,
+                      int to_col,
+                      bool is_capture,
+                      Color color) {
+    const int promotion_row = (color == Color::White) ? 7 : 0;
+    if (to_row == promotion_row) {
+        moves.push_back(Move{from_row, from_col, to_row, to_col, is_capture, PieceType::Queen});
+        moves.push_back(Move{from_row, from_col, to_row, to_col, is_capture, PieceType::Rook});
+        moves.push_back(Move{from_row, from_col, to_row, to_col, is_capture, PieceType::Bishop});
+        moves.push_back(Move{from_row, from_col, to_row, to_col, is_capture, PieceType::Knight});
+        return;
+    }
+
+    moves.push_back(Move{from_row, from_col, to_row, to_col, is_capture});
+}
+
+}  // namespace
+
 std::vector<Move> generate_pawn_moves(const Board& board, int row, int col, Color color) {
     std::vector<Move> moves;
 
@@ -8,7 +31,7 @@ std::vector<Move> generate_pawn_moves(const Board& board, int row, int col, Colo
 
     const int one_step_row = row + direction;
     if (is_valid_square(one_step_row, col) && board.is_empty(one_step_row, col)) {
-        moves.push_back(Move{row, col, one_step_row, col, false});
+        append_pawn_move(moves, row, col, one_step_row, col, false, color);
 
         const int two_step_row = row + (2 * direction);
         if (row == start_row && board.is_empty(two_step_row, col)) {
@@ -22,7 +45,7 @@ std::vector<Move> generate_pawn_moves(const Board& board, int row, int col, Colo
             continue;
         }
         if (board.has_enemy_piece(one_step_row, target_col, color)) {
-            moves.push_back(Move{row, col, one_step_row, target_col, true});
+            append_pawn_move(moves, row, col, one_step_row, target_col, true, color);
         }
     }
 

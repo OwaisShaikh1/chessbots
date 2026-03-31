@@ -31,9 +31,13 @@ void Board::apply_move(const Move& move) {
         return;
     }
 
-    const Piece moving_piece = squares_[move.from_row][move.from_col];
+    Piece moving_piece = squares_[move.from_row][move.from_col];
     if (moving_piece.type == PieceType::None) {
         return;
+    }
+
+    if (moving_piece.type == PieceType::Pawn && move.promotion != PieceType::None) {
+        moving_piece.type = move.promotion;
     }
 
     squares_[move.to_row][move.to_col] = moving_piece;
