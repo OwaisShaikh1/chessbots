@@ -2,16 +2,7 @@ from fastapi.responses import JSONResponse
 # ── Leaderboard API ─────────────────────────────────────────────────────────
 import csv
 
-@app.get("/leaderboard")
-def get_leaderboard():
-    LEADERBOARD_CSV = BASE / "backend" / "leaderboard.csv"
-    rows = []
-    if LEADERBOARD_CSV.exists():
-        with open(LEADERBOARD_CSV, newline='', encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                rows.append(row)
-    return JSONResponse(content=rows)
+
 """
 ChessBot Backend — FastAPI
 Endpoints:
@@ -51,7 +42,7 @@ BOTS_DIR = BASE / "bots"
 ACTIVE_BOT_DIR = BOTS_DIR / "active"
 PST_CONFIG_PATH = BASE / "backend" / "pst_config.json"
 NOTES_DIR = BASE / "notes"
-POSITION_SETS_DIR = NOTES_DIR / "position_sets"
+POSITION_SETS_DIR = NOTES_DIR / "test_position_sets100"
 ARENA_LOGS_DIR = NOTES_DIR / "arena_logs"
 
 PST_KEYS = ("p", "n", "b", "r", "q", "k_open", "k_end")
@@ -1106,6 +1097,17 @@ async def save_pst_config(req: PstConfigRequest):
     saved = _save_pst_config(req.config)
     return {"ok": True, "config": saved, "path": str(PST_CONFIG_PATH)}
 
+
+@app.get("/leaderboard")
+def get_leaderboard():
+    LEADERBOARD_CSV = BASE / "backend" / "leaderboard.csv"
+    rows = []
+    if LEADERBOARD_CSV.exists():
+        with open(LEADERBOARD_CSV, newline='', encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                rows.append(row)
+    return JSONResponse(content=rows)
 
 # ── WebSocket analysis stream ─────────────────────────────────────────────
 
