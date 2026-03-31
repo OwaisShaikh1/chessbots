@@ -1,3 +1,17 @@
+from fastapi.responses import JSONResponse
+# ── Leaderboard API ─────────────────────────────────────────────────────────
+import csv
+
+@app.get("/leaderboard")
+def get_leaderboard():
+    LEADERBOARD_CSV = BASE / "backend" / "leaderboard.csv"
+    rows = []
+    if LEADERBOARD_CSV.exists():
+        with open(LEADERBOARD_CSV, newline='', encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                rows.append(row)
+    return JSONResponse(content=rows)
 """
 ChessBot Backend — FastAPI
 Endpoints:
@@ -977,8 +991,33 @@ async def _run_bot_battle_session(
         "games": games_out,
     }
 
+
     log_path = ARENA_LOGS_DIR / f"arena_{ts}_{session_id}.json"
     log_path.write_text(json.dumps(session_log, indent=2), encoding="utf-8")
+
+    # ── Leaderboard CSV logging ──
+    import csv
+    LEADERBOARD_CSV = BASE / "backend" / "leaderboard.csv"
+    leaderboard_row = {
+        "timestamp": datetime.datetime.now().isoformat(timespec="seconds"),
+        "white_engine": req.engine_white_id or "default",
+        "black_engine": req.engine_black_id or "default",
+        "white_wins": summary["white_wins"],
+        "black_wins": summary["black_wins"],
+        "draws": summary["draws"],
+        "unfinished": summary["unfinished"],
+        "total_games": summary["total_games"],
+        "mode": "fixed_positions" if req.position_set else "startpos_random",
+        "position_set": req.position_set or "",
+        "session_id": session_id,
+        "log_file": str(log_path),
+    }
+    write_header = not LEADERBOARD_CSV.exists()
+    with open(LEADERBOARD_CSV, mode="a", newline='', encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=list(leaderboard_row.keys()))
+        if write_header:
+            writer.writeheader()
+        writer.writerow(leaderboard_row)
 
     response: dict[str, Any] = {
         "session_id": session_id,
@@ -1121,45 +1160,110 @@ def _sync_engine_search(
     proc: Optional[subprocess.Popen] = None
     try:
         engine_path = _resolve_engine_path(engine_id)
+        is_stockfish = engine_id and engine_id.lower().startswith("stockfish")
         proc = subprocess.Popen(
             [str(engine_path)],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             text=True,
+            bufsize=1,
         )
-        pst_path = str(PST_CONFIG_PATH).replace("\\", "/")
         safe_depth = max(1, int(depth))
         safe_movetime_ms = max(0, int(movetime_ms))
-        go_cmd = f"go depth {safe_depth}"
-        if safe_movetime_ms > 0:
-            go_cmd += f" movetime {safe_movetime_ms}"
-        cmds = (
-            "uci\n"
-            + f"setoption name PstFile value {pst_path}\n"
-            + "setoption name ReloadPst\n"
-            + "isready\n"
-            + f"position fen {fen}\n"
-            + go_cmd + "\n"
-            + "quit\n"
-        )
-        timeout_s = max(1.0, (safe_movetime_ms / 1000.0) + 1.0)
-        out, _ = proc.communicate(cmds, timeout=timeout_s)
+        timeout_s = max(1.0, (safe_movetime_ms / 1000.0) + 1.0) if safe_movetime_ms > 0 else 10.0
 
-        lines: list[str] = []
-        for raw in out.splitlines():
-            line = raw.strip()
-            if not line:
-                continue
-            if line in ("uciok", "readyok"):
-                continue
-            lines.append(line)
-            if line.startswith("bestmove"):
-                break
+        if is_stockfish:
+            # Strict UCI protocol for Stockfish
+            def send(cmd):
+                proc.stdin.write(cmd + "\n")
+                proc.stdin.flush()
 
-        if not any(line.startswith("bestmove") for line in lines):
-            lines.append("bestmove (none)")
-        return lines
+            def read_until(token):
+                lines = []
+                while True:
+                    line = proc.stdout.readline()
+                    if not line:
+                        break
+                    line = line.strip()
+                    lines.append(line)
+                    if line.startswith(token):
+                        break
+                return lines
+
+            send("uci")
+            read_until("uciok")
+            send("isready")
+            read_until("readyok")
+
+            # Build position command
+            if fen == chess.STARTING_FEN:
+                pos_cmd = "position startpos"
+            else:
+                pos_cmd = f"position fen {fen}"
+            send(pos_cmd)
+
+            go_cmd = f"go movetime {safe_movetime_ms}" if safe_movetime_ms > 0 else f"go depth {safe_depth}"
+            logging.info(f"[Stockfish] go_cmd: {go_cmd} | movetime_ms: {safe_movetime_ms} | depth: {safe_depth} | fen: {fen}")
+            send(go_cmd)
+
+            # Read until bestmove
+            bestmove_line = None
+            last_info_line = None
+            while True:
+                line = proc.stdout.readline()
+                if not line:
+                    break
+                line = line.strip()
+                if line.startswith("info"):
+                    last_info_line = line
+                if line.startswith("bestmove"):
+                    bestmove_line = line
+                    break
+            send("quit")
+            proc.stdin.flush()
+            result = []
+            if bestmove_line:
+                print(f"[Stockfish] bestmove: {bestmove_line}")
+                logging.info(f"[Stockfish] bestmove: {bestmove_line}")
+                result.append(bestmove_line)
+            else:
+                result.append("bestmove (none)")
+            return result
+        else:
+            # Existing protocol for custom engines
+            pst_path = str(PST_CONFIG_PATH).replace("\\", "/")
+            go_cmd = f"go movetime {safe_movetime_ms}" if safe_movetime_ms > 0 else f"go depth {safe_depth}"
+            cmds = (
+                "uci\n"
+                + f"setoption name PstFile value {pst_path}\n"
+                + "setoption name ReloadPst\n"
+                + "isready\n"
+                + f"position fen {fen}\n"
+                + go_cmd + "\n"
+                + "quit\n"
+            )
+            out, _ = proc.communicate(cmds, timeout=timeout_s)
+            bestmove_line = None
+            last_info_line = None
+            for raw in out.splitlines():
+                line = raw.strip()
+                if not line:
+                    continue
+                if line in ("uciok", "readyok"):
+                    continue
+                if line.startswith("info"):
+                    last_info_line = line
+                    continue
+                if line.startswith("bestmove"):
+                    bestmove_line = line
+                    break
+            result = []
+            if bestmove_line:
+                result.append(bestmove_line)
+            else:
+                result.append("bestmove (none)")
+            return result
     except subprocess.TimeoutExpired:
         if proc is not None:
             try:

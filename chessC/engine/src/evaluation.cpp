@@ -232,8 +232,8 @@ int evaluate_king_safety(const Board& b) {
         int pawn_shield = popcount(shield & b.pieces(c, PAWN));
         score += sign * pawn_shield * PAWN_SHIELD_BONUS;
 
-        // Penalty for being in check
-        if (is_square_attacked(b, ksq, ~c)) score -= sign * 50;
+        // Penalty for being in check (disabled for now)
+        // if (is_square_attacked(b, ksq, ~c)) score -= sign * 50;
     }
 
     return score;
@@ -242,12 +242,47 @@ int evaluate_king_safety(const Board& b) {
 // ─── Top-level evaluate ───────────────────────────────────────────────────
 
 int evaluate(const Board& b) {
+    // --- Check for game termination (checkmate or stalemate) ---
+    MoveList legal;
+    Board bcopy = b; // generate_legal_moves is non-const
+    generate_legal_moves(bcopy, legal);
+    if (legal.empty()) {
+        if (in_check(b, b.side_to_move)) {
+            // Checkmate: side to move is checkmated
+            int mate_score = 10000;
+            return (b.side_to_move == WHITE) ? -mate_score : mate_score;
+        } else {
+            // Stalemate
+            return 0;
+        }
+    }
+
     int score = 0;
     score += evaluate_material(b);
     score += evaluate_pst(b);
     score += evaluate_mobility(b);
     score += evaluate_pawn_structure(b);
     score += evaluate_king_safety(b);
+
+    // --- Promotion bonus: add value for pawns ready to promote (7th rank for white, 2nd rank for black) ---
+    // Assume PIECE_VALUE is indexed as [NONE, PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING]
+    // Add bonus for each pawn that can promote next move, for each possible promotion piece
+    for (Color c : {WHITE, BLACK}) {
+        int sign = (c == WHITE) ? 1 : -1;
+        Bitboard pawns = b.pieces(c, PAWN);
+        // 7th rank for white, 2nd rank for black
+        int promo_rank = (c == WHITE) ? 6 : 1;
+        for (int file = 0; file < 8; ++file) {
+            int sq = promo_rank * 8 + file;
+            if (pawns & (1ULL << sq)) {
+                // Add the difference in value between promoted piece and pawn for each possible promotion
+                score += sign * (PIECE_VALUE[QUEEN]   - PIECE_VALUE[PAWN]);
+                score += sign * (PIECE_VALUE[ROOK]    - PIECE_VALUE[PAWN]);
+                score += sign * (PIECE_VALUE[BISHOP]  - PIECE_VALUE[PAWN]);
+                score += sign * (PIECE_VALUE[KNIGHT]  - PIECE_VALUE[PAWN]);
+            }
+        }
+    }
 
     // Return from perspective of side to move
     return (b.side_to_move == WHITE) ? score : -score;

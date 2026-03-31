@@ -1,7 +1,22 @@
-#include "../include/board.h"
 
+#include "../include/board.h"
+#include "../include/types.h"
+#include "../include/move.h"
 #include <cctype>
 #include <sstream>
+
+// Returns the square index (0-63) of the king for the given color, or -1 if not found
+int Board::king_square(Color color) const {
+    for (int row = 0; row < 8; ++row) {
+        for (int col = 0; col < 8; ++col) {
+            const Piece& p = at(row, col);
+            if (p.type == PieceType::King && p.color == color) {
+                return row * 8 + col;
+            }
+        }
+    }
+    return -1;
+}
 
 Board::Board() {
     clear();

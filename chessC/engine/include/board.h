@@ -17,6 +17,9 @@ public:
     Board simulate_move(const Move& move) const;
     void load_from_fen(const std::string& fen);
 
+    // Returns the square index (0-63) of the king for the given color, or -1 if not found
+    int king_square(Color color) const;
+
 private:
     std::array<std::array<Piece, 8>, 8> squares_;
 
